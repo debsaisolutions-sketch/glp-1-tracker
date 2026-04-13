@@ -3,8 +3,8 @@
 import { useMemo, useState } from "react";
 import { Card } from "@/components/Card";
 import { EmojiPicker } from "@/components/EmojiPicker";
+import { useAppState } from "@/components/AppStateContext";
 import { FEELING_EMOJIS } from "@/lib/constants";
-import { MOCK_PROGRESS } from "@/lib/mock-data";
 import { encouragingMessage } from "@/lib/glp1-helpers";
 
 function newId() {
@@ -24,7 +24,7 @@ function sortByDateDesc(items) {
 }
 
 export default function ProgressPage() {
-  const [entries, setEntries] = useState(MOCK_PROGRESS);
+  const { progress: entries, addProgress, hydrated } = useAppState();
   const [form, setForm] = useState({
     date: new Date().toISOString().slice(0, 10),
     weightLb: "",
@@ -42,7 +42,7 @@ export default function ProgressPage() {
     latest && baseline ? latest.weightLb - baseline.weightLb : 0;
   const message = encouragingMessage(change);
 
-  function addEntry(e) {
+  function submitEntry(e) {
     e.preventDefault();
     const w = Number.parseFloat(form.weightLb);
     if (Number.isNaN(w)) return;
@@ -55,7 +55,7 @@ export default function ProgressPage() {
       feeling: form.feeling,
       notes: form.notes.trim(),
     };
-    setEntries((x) => [row, ...x]);
+    addProgress(row);
     setForm((f) => ({
       ...f,
       weightLb: "",
@@ -64,17 +64,24 @@ export default function ProgressPage() {
     }));
   }
 
+  if (!hydrated) {
+    return (
+      <div className="animate-pulse rounded-2xl bg-zinc-100 py-24 dark:bg-zinc-800" />
+    );
+  }
+
   return (
     <div className="flex flex-col gap-5 pb-4">
       <header>
         <p className="text-xs font-medium uppercase tracking-wide text-teal-700 dark:text-teal-300">
-          Progress
+          Weight Progress
         </p>
         <h1 className="mt-1 text-2xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-50">
           Weight journey
         </h1>
         <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
-          Track the trend—not just the number.
+          Record a weigh-in (and optional inches) to see your change over time
+          plus a short encouraging note.
         </p>
       </header>
 
@@ -118,7 +125,7 @@ export default function ProgressPage() {
         <h2 className="text-sm font-semibold text-zinc-900 dark:text-zinc-50">
           Log weigh-in
         </h2>
-        <form className="mt-4 space-y-4" onSubmit={addEntry}>
+        <form className="mt-4 space-y-4" onSubmit={submitEntry}>
           <div>
             <label className="text-xs font-medium text-zinc-600 dark:text-zinc-400">
               Date
@@ -196,6 +203,9 @@ export default function ProgressPage() {
         <h2 className="text-sm font-semibold text-zinc-900 dark:text-zinc-50">
           History
         </h2>
+        {sortedDesc.length === 0 ? (
+          <p className="text-sm text-zinc-500">No weigh-ins yet.</p>
+        ) : null}
         {sortedDesc.map((p) => (
           <Card key={p.id}>
             <p className="text-sm font-semibold text-zinc-900 dark:text-zinc-50">

@@ -1,5 +1,10 @@
 import { AppShell } from "@/components/AppShell";
+import { AppStateProvider } from "@/components/AppStateContext";
 
 export default function AppLayout({ children }) {
-  return <AppShell>{children}</AppShell>;
+  return (
+    <AppStateProvider>
+      <AppShell>{children}</AppShell>
+    </AppStateProvider>
+  );
 }

@@ -1,119 +1,100 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { Card } from "@/components/Card";
 import { EmojiPicker } from "@/components/EmojiPicker";
 import { useAppState } from "@/components/AppStateContext";
-import {
-  DOSE_TYPES,
-  FEELING_EMOJIS,
-  SIDE_EFFECT_OPTIONS,
-} from "@/lib/constants";
+import { OnboardingChrome } from "@/components/OnboardingChrome";
+import { DOSE_TYPES, FEELING_EMOJIS } from "@/lib/constants";
 import {
   getMgPerUnitFromVial,
   parseNumericAmount,
   unitsToMg,
-  weeklyDoseTotalMg,
 } from "@/lib/glp1-helpers";
+import { isMedicationSetupComplete } from "@/lib/vial-settings";
 
 function newId() {
   return `d-${Math.random().toString(36).slice(2, 10)}`;
 }
 
-function sortByDateDesc(items) {
-  return [...items].sort(
-    (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime(),
-  );
-}
+export default function OnboardingStep3Page() {
+  const router = useRouter();
+  const { vial, addDose, completeOnboarding, progress, doses, hydrated } =
+    useAppState();
 
-export default function DosesPage() {
-  const { vial, doses, addDose, hydrated } = useAppState();
   const [form, setForm] = useState({
     date: new Date().toISOString().slice(0, 10),
-    units: 50,
+    units: "50",
     doseType: "full",
     feeling: FEELING_EMOJIS[1],
-    sideEffects: [],
     notes: "",
   });
 
-  const mgPerUnit = getMgPerUnitFromVial(vial);
+  useEffect(() => {
+    if (!hydrated) return;
+    if (!isMedicationSetupComplete(vial)) {
+      router.replace("/app/onboarding/step-1");
+      return;
+    }
+    if (progress.length === 0) {
+      router.replace("/app/onboarding/step-2");
+      return;
+    }
+    if (doses.length > 0) {
+      router.replace("/app");
+    }
+  }, [hydrated, vial, progress, doses, router]);
+
+  const mgPerUnit = useMemo(() => getMgPerUnitFromVial(vial), [vial]);
 
   const previewMg = unitsToMg(parseNumericAmount(form.units) || 0, mgPerUnit);
-  const weekMg = weeklyDoseTotalMg(doses);
 
-  function toggleEffect(id) {
-    setForm((f) => {
-      const has = f.sideEffects.includes(id);
-      return {
-        ...f,
-        sideEffects: has
-          ? f.sideEffects.filter((x) => x !== id)
-          : [...f.sideEffects, id],
-      };
-    });
-  }
-
-  function submitDose(e) {
+  function onFinish(e) {
     e.preventDefault();
     const units = parseNumericAmount(form.units) || 0;
+    if (units <= 0) return;
     const mg = unitsToMg(units, mgPerUnit);
-    const row = {
+    addDose({
       id: newId(),
       date: form.date,
       units,
       mg: Math.round(mg * 1000) / 1000,
       doseType: form.doseType,
       feeling: form.feeling,
-      sideEffects: form.sideEffects,
-      notes: form.notes.trim(),
-    };
-    addDose(row);
-    setForm((f) => ({
-      ...f,
-      units: 50,
       sideEffects: [],
-      notes: "",
-    }));
+      notes: form.notes.trim() || "First dose",
+    });
+    completeOnboarding();
+    router.push("/app");
   }
-
-  const sorted = sortByDateDesc(doses);
 
   if (!hydrated) {
     return (
-      <div className="animate-pulse rounded-2xl bg-zinc-100 py-24 dark:bg-zinc-800" />
+      <div className="animate-pulse rounded-2xl bg-zinc-100 py-16 dark:bg-zinc-800" />
     );
   }
 
+  const validUnits = (parseNumericAmount(form.units) || 0) > 0;
+
   return (
-    <div className="flex flex-col gap-5 pb-4">
+    <div className="flex flex-col gap-5">
+      <OnboardingChrome step={3} />
       <header>
         <p className="text-xs font-medium uppercase tracking-wide text-teal-700 dark:text-teal-300">
-          Log Dose
+          Step 3 · First dose
         </p>
         <h1 className="mt-1 text-2xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-50">
-          Injections
+          Log your first dose
         </h1>
         <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
-          Add each shot with units and how you felt—we&apos;ll show mg and your
-          weekly total.
+          Units and mg use the vial you set in step 1—adjust the defaults if
+          needed.
         </p>
       </header>
 
       <Card>
-        <p className="text-xs font-medium uppercase tracking-wide text-zinc-500">
-          Weekly total (this week)
-        </p>
-        <p className="mt-2 text-2xl font-semibold text-zinc-900 dark:text-zinc-50">
-          {weekMg.toFixed(2)} mg
-        </p>
-      </Card>
-
-      <Card>
-        <h2 className="text-sm font-semibold text-zinc-900 dark:text-zinc-50">
-          Log a dose
-        </h2>
-        <form className="mt-4 space-y-4" onSubmit={submitDose}>
+        <form className="space-y-4" onSubmit={onFinish}>
           <div>
             <label className="text-xs font-medium text-zinc-600 dark:text-zinc-400">
               Date
@@ -121,7 +102,9 @@ export default function DosesPage() {
             <input
               type="date"
               value={form.date}
-              onChange={(e) => setForm((f) => ({ ...f, date: e.target.value }))}
+              onChange={(e) =>
+                setForm((f) => ({ ...f, date: e.target.value }))
+              }
               className="mt-1 w-full rounded-xl border border-zinc-200 bg-white px-3 py-2.5 text-sm dark:border-zinc-700 dark:bg-zinc-950"
             />
           </div>
@@ -184,82 +167,28 @@ export default function DosesPage() {
           />
 
           <div>
-            <p className="mb-2 text-xs font-medium text-zinc-600 dark:text-zinc-400">
-              Side effects
-            </p>
-            <div className="flex flex-col gap-2">
-              {SIDE_EFFECT_OPTIONS.map((opt) => (
-                <label
-                  key={opt.id}
-                  className="flex items-center gap-2 text-sm text-zinc-800 dark:text-zinc-200"
-                >
-                  <input
-                    type="checkbox"
-                    checked={form.sideEffects.includes(opt.id)}
-                    onChange={() => toggleEffect(opt.id)}
-                    className="h-4 w-4 rounded border-zinc-300 text-teal-600"
-                  />
-                  {opt.label}
-                </label>
-              ))}
-            </div>
-          </div>
-
-          <div>
             <label className="text-xs font-medium text-zinc-600 dark:text-zinc-400">
-              Notes
+              Notes (optional)
             </label>
             <textarea
               value={form.notes}
               onChange={(e) =>
                 setForm((f) => ({ ...f, notes: e.target.value }))
               }
-              rows={3}
+              rows={2}
               className="mt-1 w-full rounded-xl border border-zinc-200 bg-white px-3 py-2.5 text-sm dark:border-zinc-700 dark:bg-zinc-950"
             />
           </div>
 
           <button
             type="submit"
-            className="w-full rounded-xl bg-teal-600 py-2.5 text-sm font-semibold text-white hover:bg-teal-700"
+            disabled={!validUnits}
+            className="w-full rounded-xl bg-teal-600 py-3 text-sm font-semibold text-white hover:bg-teal-700 disabled:cursor-not-allowed disabled:opacity-50"
           >
-            Add dose (local only)
+            Finish Setup
           </button>
         </form>
       </Card>
-
-      <div className="space-y-3">
-        <h2 className="text-sm font-semibold text-zinc-900 dark:text-zinc-50">
-          Recent doses
-        </h2>
-        {sorted.length === 0 ? (
-          <p className="text-sm text-zinc-500">No doses logged yet.</p>
-        ) : null}
-        {sorted.map((d) => (
-          <Card key={d.id}>
-            <div className="flex items-start justify-between gap-2">
-              <div>
-                <p className="text-sm font-semibold text-zinc-900 dark:text-zinc-50">
-                  {d.mg} mg · {d.units} units
-                </p>
-                <p className="text-xs text-zinc-500">
-                  {d.date} · {d.doseType} · {d.feeling}
-                </p>
-              </div>
-            </div>
-            {d.sideEffects.length ? (
-              <p className="mt-2 text-xs text-zinc-600 dark:text-zinc-400">
-                Side effects: {d.sideEffects.join(", ")}
-              </p>
-            ) : null}
-            {d.notes ? (
-              <p className="mt-2 text-sm leading-relaxed text-zinc-700 dark:text-zinc-300">
-                {d.notes}
-              </p>
-            ) : null}
-          </Card>
-        ))}
-      </div>
     </div>
   );
 }

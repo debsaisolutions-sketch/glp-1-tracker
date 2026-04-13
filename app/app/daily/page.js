@@ -3,8 +3,8 @@
 import { useState } from "react";
 import { Card } from "@/components/Card";
 import { EmojiPicker } from "@/components/EmojiPicker";
+import { useAppState } from "@/components/AppStateContext";
 import { FEELING_EMOJIS } from "@/lib/constants";
-import { MOCK_DAILY } from "@/lib/mock-data";
 
 function newId() {
   return `l-${Math.random().toString(36).slice(2, 10)}`;
@@ -17,7 +17,7 @@ function sortByDateDesc(items) {
 }
 
 export default function DailyPage() {
-  const [logs, setLogs] = useState(MOCK_DAILY);
+  const { daily: logs, addDaily, hydrated } = useAppState();
   const [form, setForm] = useState({
     date: new Date().toISOString().slice(0, 10),
     foodNotes: "",
@@ -27,7 +27,7 @@ export default function DailyPage() {
     notes: "",
   });
 
-  function addLog(e) {
+  function submitLog(e) {
     e.preventDefault();
     const row = {
       id: newId(),
@@ -38,7 +38,7 @@ export default function DailyPage() {
       feeling: form.feeling,
       notes: form.notes.trim(),
     };
-    setLogs((x) => [row, ...x]);
+    addDaily(row);
     setForm((f) => ({
       ...f,
       foodNotes: "",
@@ -50,17 +50,24 @@ export default function DailyPage() {
 
   const sorted = sortByDateDesc(logs);
 
+  if (!hydrated) {
+    return (
+      <div className="animate-pulse rounded-2xl bg-zinc-100 py-24 dark:bg-zinc-800" />
+    );
+  }
+
   return (
     <div className="flex flex-col gap-5 pb-4">
       <header>
         <p className="text-xs font-medium uppercase tracking-wide text-teal-700 dark:text-teal-300">
-          Daily tracker
+          Daily Log
         </p>
         <h1 className="mt-1 text-2xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-50">
           Food & fluids
         </h1>
         <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
-          Light-touch logging for busy days.
+          Jot today&apos;s meals, protein, water, and mood so you can spot
+          patterns alongside your medication.
         </p>
       </header>
 
@@ -68,7 +75,7 @@ export default function DailyPage() {
         <h2 className="text-sm font-semibold text-zinc-900 dark:text-zinc-50">
           Add daily log
         </h2>
-        <form className="mt-4 space-y-4" onSubmit={addLog}>
+        <form className="mt-4 space-y-4" onSubmit={submitLog}>
           <div>
             <label className="text-xs font-medium text-zinc-600 dark:text-zinc-400">
               Date
@@ -157,6 +164,9 @@ export default function DailyPage() {
         <h2 className="text-sm font-semibold text-zinc-900 dark:text-zinc-50">
           Recent days
         </h2>
+        {sorted.length === 0 ? (
+          <p className="text-sm text-zinc-500">No daily logs yet.</p>
+        ) : null}
         {sorted.map((log) => (
           <Card key={log.id}>
             <div className="flex items-start justify-between gap-2">
