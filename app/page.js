@@ -1,0 +1,88 @@
+import Link from "next/link";
+import { PublicHeader } from "@/components/PublicHeader";
+import { Card } from "@/components/Card";
+
+export default function LandingPage() {
+  return (
+    <div className="flex min-h-screen flex-col bg-gradient-to-b from-teal-50/90 via-white to-zinc-50 dark:from-zinc-950 dark:via-zinc-950 dark:to-black">
+      <PublicHeader />
+      <main className="mx-auto flex w-full max-w-lg flex-1 flex-col gap-8 px-4 py-10 sm:max-w-4xl sm:py-14">
+        <section className="space-y-4 text-center sm:text-left">
+          <p className="text-sm font-medium uppercase tracking-wide text-teal-700 dark:text-teal-300">
+            Mobile-first tracking
+          </p>
+          <h1 className="text-balance text-3xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-50 sm:text-4xl">
+            A calmer way to track your GLP-1 journey
+          </h1>
+          <p className="text-pretty text-lg leading-relaxed text-zinc-600 dark:text-zinc-400">
+            Log doses with automatic mg math, capture daily notes, and watch
+            weight trends—all in one friendly dashboard built for your phone.
+          </p>
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+            <Link
+              href="/signup"
+              className="inline-flex items-center justify-center rounded-2xl bg-teal-600 px-5 py-3 text-center text-sm font-semibold text-white shadow-sm hover:bg-teal-700"
+            >
+              Start free
+            </Link>
+            <Link
+              href="/login"
+              className="inline-flex items-center justify-center rounded-2xl border border-zinc-200 bg-white px-5 py-3 text-center text-sm font-semibold text-zinc-800 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100 dark:hover:bg-zinc-800"
+            >
+              Log in
+            </Link>
+          </div>
+        </section>
+
+        <section className="grid gap-4 sm:grid-cols-3">
+          <Card>
+            <h2 className="text-sm font-semibold text-zinc-900 dark:text-zinc-50">
+              Dose clarity
+            </h2>
+            <p className="mt-2 text-sm leading-relaxed text-zinc-600 dark:text-zinc-400">
+              Store vial strength once—units convert to mg automatically.
+            </p>
+          </Card>
+          <Card>
+            <h2 className="text-sm font-semibold text-zinc-900 dark:text-zinc-50">
+              Daily rhythm
+            </h2>
+            <p className="mt-2 text-sm leading-relaxed text-zinc-600 dark:text-zinc-400">
+              Food, protein, water, and mood in quick taps—not spreadsheets.
+            </p>
+          </Card>
+          <Card>
+            <h2 className="text-sm font-semibold text-zinc-900 dark:text-zinc-50">
+              Progress you feel
+            </h2>
+            <p className="mt-2 text-sm leading-relaxed text-zinc-600 dark:text-zinc-400">
+              Weigh-ins with encouraging context, not judgment.
+            </p>
+          </Card>
+        </section>
+
+        <section className="rounded-3xl border border-teal-100 bg-teal-50/60 p-6 dark:border-teal-900 dark:bg-teal-950/40">
+          <p className="text-sm font-medium text-teal-900 dark:text-teal-100">
+            Ready when you are
+          </p>
+          <p className="mt-2 text-sm leading-relaxed text-teal-800/90 dark:text-teal-200/90">
+            This preview uses mock data—your future account will sync across
+            devices. No Stripe or database wiring yet; just a fast, polished
+            shell you can iterate on.
+          </p>
+          <div className="mt-4">
+            <Link
+              href="/app"
+              className="text-sm font-semibold text-teal-900 underline-offset-4 hover:underline dark:text-teal-100"
+            >
+              Open the app preview →
+            </Link>
+          </div>
+        </section>
+      </main>
+      <footer className="border-t border-zinc-200/80 py-6 text-center text-xs text-zinc-500 dark:border-zinc-800">
+        GLP-1 Tracker · Educational mockup · Not medical advice
+      </footer>
+    </div>
+  );
+}
