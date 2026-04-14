@@ -329,17 +329,40 @@ export default function DashboardPage() {
           <p className="text-xs font-semibold uppercase tracking-wide text-teal-800 dark:text-teal-200">
             Gentle guidance
           </p>
-          <ul className="mt-3 space-y-2.5 text-sm leading-relaxed text-teal-950 dark:text-teal-100">
-            {guidanceLines.map((line) => (
-              <li key={line} className="flex gap-2">
-                <span
-                  className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-teal-500"
-                  aria-hidden
-                />
-                <span>{line}</span>
-              </li>
-            ))}
+          <ul className="mt-3 space-y-3 text-sm leading-relaxed text-teal-950 dark:text-teal-100">
+            {guidanceLines.map((line, i) => {
+              const text = typeof line === "string" ? line : line.text;
+              const rec =
+                typeof line === "object" && line?.recommendation
+                  ? line.recommendation
+                  : null;
+              return (
+                <li key={`${i}-${text.slice(0, 48)}`} className="flex gap-2">
+                  <span
+                    className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-teal-500"
+                    aria-hidden
+                  />
+                  <div className="min-w-0 flex-1">
+                    <p>{text}</p>
+                    {rec ? (
+                      <a
+                        href={rec.url}
+                        onClick={(e) => {
+                          if (rec.url === "#") e.preventDefault();
+                        }}
+                        className="mt-1.5 inline-flex text-xs font-semibold text-teal-800 underline-offset-4 hover:underline dark:text-teal-200"
+                      >
+                        {rec.label}
+                      </a>
+                    ) : null}
+                  </div>
+                </li>
+              );
+            })}
           </ul>
+          <p className="mt-2 text-[11px] text-teal-800/70 dark:text-teal-200/70">
+            Affiliate links may be included.
+          </p>
           <p className="mt-3 text-xs text-teal-800/80 dark:text-teal-200/80">
             For education only—not medical advice. Always follow your
             prescriber&apos;s plan.

@@ -20,18 +20,24 @@ export default function LandingPage() {
           </p>
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
             <Link
-              href="/app"
+              href="/pricing"
               className="inline-flex items-center justify-center rounded-2xl bg-teal-600 px-5 py-3 text-center text-sm font-semibold text-white shadow-sm hover:bg-teal-700"
             >
-              Preview App
+              Start your 7-day free trial
             </Link>
             <span
               className="inline-flex cursor-default items-center justify-center rounded-2xl border border-dashed border-zinc-300 bg-white/80 px-5 py-3 text-center text-sm font-semibold text-zinc-500 dark:border-zinc-600 dark:bg-zinc-900/60 dark:text-zinc-400"
-              title="Accounts are not available in this test build."
+              title="Transparent monthly pricing."
             >
-              Coming soon
+              Then $9/month unless you cancel
             </span>
           </div>
+          <p className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
+            Cancel anytime
+          </p>
+          <p className="text-xs text-zinc-500 dark:text-zinc-400">
+            No surprise billing. You can cancel before the trial ends.
+          </p>
           <p className="text-xs text-zinc-500 dark:text-zinc-400">
             Accounts and billing are not live yet—this is a local preview.{" "}
             <Link

@@ -4,24 +4,16 @@ import { Card } from "@/components/Card";
 
 const tiers = [
   {
-    name: "Starter",
-    price: "$0",
-    blurb: "Mock tier for solo tracking.",
-    features: ["Local mock data", "Core trackers", "Mobile layouts"],
-  },
-  {
-    name: "Plus",
-    price: "$8",
+    name: "GLP-1 Tracker",
+    price: "$9",
     period: "/mo",
-    blurb: "Where sync & reminders will live.",
-    features: ["Cloud sync (soon)", "Smart reminders (soon)", "Export CSV (soon)"],
+    blurb: "Start your 7-day free trial",
+    features: [
+      "Then $9/month unless you cancel",
+      "Cancel anytime",
+      "No surprise billing. You can cancel before the trial ends.",
+    ],
     highlight: true,
-  },
-  {
-    name: "Clinic",
-    price: "Let’s talk",
-    blurb: "For care teams—future roadmap.",
-    features: ["Multi-user roles (soon)", "Audit logs (soon)", "HIPAA-ready path (soon)"],
   },
 ];
 
@@ -35,13 +27,15 @@ export default function PricingPage() {
             Simple pricing
           </h1>
           <p className="mt-2 max-w-2xl text-sm leading-relaxed text-zinc-600 dark:text-zinc-400">
-            Placeholder plans—Stripe checkout and accounts are not wired yet.
-            Use this layout to pitch value; use Preview App to try the tracker
-            locally.
+            Start your 7-day free trial. Then $9/month unless you cancel.
+            Cancel anytime.
+          </p>
+          <p className="mt-1 max-w-2xl text-xs text-zinc-500 dark:text-zinc-400">
+            No surprise billing. You can cancel before the trial ends.
           </p>
         </div>
 
-        <div className="mt-8 grid gap-4 sm:grid-cols-3">
+        <div className="mt-8 grid gap-4 sm:max-w-md">
           {tiers.map((tier) => (
             <Card
               key={tier.name}
@@ -82,28 +76,12 @@ export default function PricingPage() {
                   </li>
                 ))}
               </ul>
-              {tier.name === "Starter" ? (
-                <Link
-                  href="/app"
-                  className="mt-6 flex w-full items-center justify-center rounded-xl bg-teal-600 py-2.5 text-sm font-semibold text-white hover:bg-teal-700"
-                >
-                  Preview App
-                </Link>
-              ) : tier.name === "Plus" ? (
-                <span
-                  className="mt-6 flex w-full cursor-default items-center justify-center rounded-xl border border-dashed border-zinc-300 bg-zinc-50 py-2.5 text-sm font-semibold text-zinc-500 dark:border-zinc-600 dark:bg-zinc-900/40 dark:text-zinc-400"
-                  title="Checkout is not wired in this preview."
-                >
-                  Coming soon
-                </span>
-              ) : (
-                <span
-                  className="mt-6 flex w-full cursor-default items-center justify-center rounded-xl border border-zinc-200 bg-white py-2.5 text-sm font-semibold text-zinc-600 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300"
-                  title="No waitlist form in this preview build."
-                >
-                  Join waitlist
-                </span>
-              )}
+              <Link
+                href="/app"
+                className="mt-6 flex w-full items-center justify-center rounded-xl bg-teal-600 py-2.5 text-sm font-semibold text-white hover:bg-teal-700"
+              >
+                Start your 7-day free trial
+              </Link>
             </Card>
           ))}
         </div>
