@@ -2,13 +2,13 @@
 
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useEffect } from "react";
+import { Suspense, useEffect } from "react";
 import { PublicHeader } from "@/components/PublicHeader";
 import { Card } from "@/components/Card";
 import { LoginForm } from "@/components/LoginForm";
 import { supabase } from "@/lib/supabaseClient";
 
-export default function LoginPage() {
+function LoginPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
@@ -66,5 +66,13 @@ export default function LoginPage() {
         </Card>
       </main>
     </div>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={null}>
+      <LoginPageContent />
+    </Suspense>
   );
 }
