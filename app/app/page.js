@@ -2,16 +2,24 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { useEffect, useMemo, useState } from "react";
 import { Card } from "@/components/Card";
 import { useAppState } from "@/components/AppStateContext";
 import {
   getMgPerUnitFromVial,
+  parseNumericAmount,
   weeklyDoseTotalMg,
 } from "@/lib/glp1-helpers";
 import {
+  collectFoodNoteStrings,
+  detectShakeRelatedNotes,
+} from "@/lib/nutrition-estimator";
+import {
   getCurrentSetupStep,
+  isPrimaryGoalSet,
   showFullDashboard,
 } from "@/lib/setup-status";
+import { getSupportGuidanceLines } from "@/lib/decision-engine";
 import { isMedicationSetupComplete } from "@/lib/vial-settings";
 
 function sortByDateDesc(items, key = "date") {
@@ -33,6 +41,7 @@ const STEP_HREF = {
   1: "/app/onboarding/step-1",
   2: "/app/onboarding/step-2",
   3: "/app/onboarding/step-3",
+  4: "/app/onboarding/step-4",
 };
 
 export default function DashboardPage() {
@@ -41,6 +50,10 @@ export default function DashboardPage() {
     vial,
     doses,
     progress,
+    daily,
+    shakeNutritionPrefs,
+    setShakeNutritionPrefs,
+    primaryGoal,
     onboardingComplete,
     skipOnboarding,
     hydrated,
@@ -51,12 +64,14 @@ export default function DashboardPage() {
     vial,
     progress,
     doses,
+    primaryGoal,
   );
   const medicationReady = isMedicationSetupComplete(vial);
-  const step1Done = medicationReady;
-  const step2Done = progress.length > 0;
-  const step3Done = doses.length > 0;
-  const currentStep = getCurrentSetupStep(vial, progress, doses);
+  const step1Done = isPrimaryGoalSet(primaryGoal);
+  const step2Done = medicationReady;
+  const step3Done = progress.length > 0;
+  const step4Done = doses.length > 0;
+  const currentStep = getCurrentSetupStep(vial, progress, doses, primaryGoal);
 
   const progressSorted = sortByDateDesc(progress);
   const dosesSorted = sortByDateDesc(doses);
@@ -65,6 +80,77 @@ export default function DashboardPage() {
   const baseline = progressSorted[progressSorted.length - 1];
   const weekMg = weeklyDoseTotalMg(doses);
   const mgPerUnit = getMgPerUnitFromVial(vial);
+
+  const dailySorted = useMemo(() => sortByDateDesc(daily), [daily]);
+  const shakeNoteList = useMemo(
+    () => collectFoodNoteStrings(dosesSorted, dailySorted, 5),
+    [dosesSorted, dailySorted],
+  );
+  const showShakeFollowUp =
+    medicationReady &&
+    full &&
+    detectShakeRelatedNotes(shakeNoteList);
+
+  const [shakeScoopsInput, setShakeScoopsInput] = useState("");
+  const [shakeProtInput, setShakeProtInput] = useState("");
+  const [shakeCarbInput, setShakeCarbInput] = useState("");
+  const [shakeSessionScoops, setShakeSessionScoops] = useState(null);
+
+  useEffect(() => {
+    setShakeProtInput(
+      shakeNutritionPrefs.proteinPerScoop > 0
+        ? String(shakeNutritionPrefs.proteinPerScoop)
+        : "",
+    );
+    setShakeCarbInput(
+      shakeNutritionPrefs.carbsPerScoop > 0
+        ? String(shakeNutritionPrefs.carbsPerScoop)
+        : "",
+    );
+  }, [shakeNutritionPrefs]);
+
+  useEffect(() => {
+    if (shakeSessionScoops != null) {
+      setShakeScoopsInput(String(shakeSessionScoops));
+    } else {
+      setShakeScoopsInput("");
+    }
+  }, [shakeSessionScoops]);
+
+  const guidanceLines = useMemo(
+    () =>
+      getSupportGuidanceLines({
+        doses,
+        progress,
+        daily,
+        shakePrefs: shakeNutritionPrefs,
+        shakeScoops: shakeSessionScoops,
+        primaryGoal,
+      }),
+    [
+      doses,
+      progress,
+      daily,
+      shakeNutritionPrefs,
+      shakeSessionScoops,
+      primaryGoal,
+    ],
+  );
+
+  function saveShakeDetails() {
+    const prot = parseNumericAmount(shakeProtInput);
+    const carb = parseNumericAmount(shakeCarbInput);
+    const sc = parseNumericAmount(shakeScoopsInput);
+    setShakeNutritionPrefs({
+      proteinPerScoop: prot > 0 ? prot : 0,
+      carbsPerScoop: Number.isFinite(carb) && carb >= 0 ? carb : 0,
+    });
+    if (Number.isFinite(sc) && sc > 0) {
+      setShakeSessionScoops(sc);
+    } else if (!String(shakeScoopsInput).trim()) {
+      setShakeSessionScoops(null);
+    }
+  }
 
   function onSkipSetup() {
     skipOnboarding();
@@ -88,24 +174,25 @@ export default function DashboardPage() {
             Let&apos;s get you set up
           </h1>
           <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
-            Complete these three steps once—then your full dashboard unlocks.
+            Complete these four quick steps once—then your full dashboard
+            unlocks.
           </p>
         </header>
 
         <Card className="border-teal-200/80 dark:border-teal-900">
           <p className="text-xs font-semibold uppercase tracking-wide text-teal-800 dark:text-teal-200">
-            Step {currentStep} of 3
+            Step {currentStep} of 4
           </p>
           <div
             className="mt-2 h-2 overflow-hidden rounded-full bg-zinc-200 dark:bg-zinc-800"
             role="progressbar"
             aria-valuenow={currentStep}
             aria-valuemin={1}
-            aria-valuemax={3}
+            aria-valuemax={4}
           >
             <div
               className="h-full rounded-full bg-teal-600 transition-[width] duration-300"
-              style={{ width: `${(currentStep / 3) * 100}%` }}
+              style={{ width: `${(currentStep / 4) * 100}%` }}
             />
           </div>
 
@@ -121,7 +208,7 @@ export default function DashboardPage() {
                     : "text-zinc-700 dark:text-zinc-300"
                 }
               >
-                Medication setup
+                Your goal
               </span>
             </li>
             <li className="flex items-start gap-2">
@@ -135,7 +222,7 @@ export default function DashboardPage() {
                     : "text-zinc-700 dark:text-zinc-300"
                 }
               >
-                Starting weight
+                Medication setup
               </span>
             </li>
             <li className="flex items-start gap-2">
@@ -145,6 +232,20 @@ export default function DashboardPage() {
               <span
                 className={
                   currentStep === 3 && !step3Done
+                    ? "font-semibold text-zinc-900 dark:text-zinc-50"
+                    : "text-zinc-700 dark:text-zinc-300"
+                }
+              >
+                Starting weight
+              </span>
+            </li>
+            <li className="flex items-start gap-2">
+              <span className="mt-0.5 w-5 shrink-0 text-center font-medium text-teal-600 dark:text-teal-400">
+                {step4Done ? "\u2713" : currentStep === 4 ? "\u2192" : "\u25CB"}
+              </span>
+              <span
+                className={
+                  currentStep === 4 && !step4Done
                     ? "font-semibold text-zinc-900 dark:text-zinc-50"
                     : "text-zinc-700 dark:text-zinc-300"
                 }
@@ -221,6 +322,108 @@ export default function DashboardPage() {
             Open Medication Setup →
           </Link>
         </div>
+      ) : null}
+
+      {guidanceLines.length > 0 ? (
+        <Card className="border-teal-100 bg-teal-50/40 dark:border-teal-900/50 dark:bg-teal-950/25">
+          <p className="text-xs font-semibold uppercase tracking-wide text-teal-800 dark:text-teal-200">
+            Gentle guidance
+          </p>
+          <ul className="mt-3 space-y-2.5 text-sm leading-relaxed text-teal-950 dark:text-teal-100">
+            {guidanceLines.map((line) => (
+              <li key={line} className="flex gap-2">
+                <span
+                  className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-teal-500"
+                  aria-hidden
+                />
+                <span>{line}</span>
+              </li>
+            ))}
+          </ul>
+          <p className="mt-3 text-xs text-teal-800/80 dark:text-teal-200/80">
+            For education only—not medical advice. Always follow your
+            prescriber&apos;s plan.
+          </p>
+        </Card>
+      ) : null}
+
+      {showShakeFollowUp ? (
+        <Card className="space-y-4 border-zinc-200/90 dark:border-zinc-800">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wide text-zinc-600 dark:text-zinc-400">
+              Shake details (optional)
+            </p>
+            <p className="mt-1 text-sm leading-relaxed text-zinc-600 dark:text-zinc-400">
+              Your notes mention a shake or protein powder. Add scoops and label
+              numbers if you like—otherwise we&apos;ll keep a rough guess. Your
+              usual protein and carbs per scoop are saved on this device.
+            </p>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-3">
+            <div>
+              <label
+                htmlFor="shake-scoops"
+                className="text-xs font-medium text-zinc-600 dark:text-zinc-400"
+              >
+                How many scoops did you use?
+              </label>
+              <input
+                id="shake-scoops"
+                inputMode="decimal"
+                value={shakeScoopsInput}
+                onChange={(e) => setShakeScoopsInput(e.target.value)}
+                placeholder="e.g. 1"
+                className="mt-1 w-full rounded-xl border border-zinc-200 bg-white px-3 py-2.5 text-sm dark:border-zinc-700 dark:bg-zinc-950"
+              />
+            </div>
+            <div>
+              <label
+                htmlFor="shake-protein"
+                className="text-xs font-medium text-zinc-600 dark:text-zinc-400"
+              >
+                How much protein per scoop (g)?
+              </label>
+              <input
+                id="shake-protein"
+                inputMode="decimal"
+                value={shakeProtInput}
+                onChange={(e) => setShakeProtInput(e.target.value)}
+                placeholder="e.g. 25"
+                className="mt-1 w-full rounded-xl border border-zinc-200 bg-white px-3 py-2.5 text-sm dark:border-zinc-700 dark:bg-zinc-950"
+              />
+            </div>
+            <div>
+              <label
+                htmlFor="shake-carbs"
+                className="text-xs font-medium text-zinc-600 dark:text-zinc-400"
+              >
+                How many carbs per scoop (g)?
+              </label>
+              <input
+                id="shake-carbs"
+                inputMode="decimal"
+                value={shakeCarbInput}
+                onChange={(e) => setShakeCarbInput(e.target.value)}
+                placeholder="e.g. 3"
+                className="mt-1 w-full rounded-xl border border-zinc-200 bg-white px-3 py-2.5 text-sm dark:border-zinc-700 dark:bg-zinc-950"
+              />
+            </div>
+          </div>
+          {shakeSessionScoops != null ? (
+            <p className="text-xs text-zinc-500 dark:text-zinc-400">
+              Using {shakeSessionScoops} scoop
+              {shakeSessionScoops === 1 ? "" : "s"} for this visit&apos;s
+              estimate. Clear scoops above and save to go back to a rough range.
+            </p>
+          ) : null}
+          <button
+            type="button"
+            onClick={saveShakeDetails}
+            className="w-full rounded-xl bg-teal-600 py-2.5 text-sm font-semibold text-white hover:bg-teal-700"
+          >
+            Save for better estimates
+          </button>
+        </Card>
       ) : null}
 
       <div className="grid gap-4 sm:grid-cols-2">

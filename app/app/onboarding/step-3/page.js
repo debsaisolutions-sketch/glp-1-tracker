@@ -1,72 +1,58 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Card } from "@/components/Card";
-import { EmojiPicker } from "@/components/EmojiPicker";
 import { useAppState } from "@/components/AppStateContext";
 import { OnboardingChrome } from "@/components/OnboardingChrome";
-import { DOSE_TYPES, FEELING_EMOJIS } from "@/lib/constants";
-import {
-  getMgPerUnitFromVial,
-  parseNumericAmount,
-  unitsToMg,
-} from "@/lib/glp1-helpers";
+import { FEELING_EMOJIS } from "@/lib/constants";
+import { isDataSetupComplete, isPrimaryGoalSet } from "@/lib/setup-status";
 import { isMedicationSetupComplete } from "@/lib/vial-settings";
 
 function newId() {
-  return `d-${Math.random().toString(36).slice(2, 10)}`;
+  return `p-${Math.random().toString(36).slice(2, 10)}`;
 }
 
 export default function OnboardingStep3Page() {
   const router = useRouter();
-  const { vial, addDose, completeOnboarding, progress, doses, hydrated } =
+  const { vial, addProgress, primaryGoal, progress, doses, hydrated } =
     useAppState();
-
-  const [form, setForm] = useState({
-    date: new Date().toISOString().slice(0, 10),
-    units: "50",
-    doseType: "full",
-    feeling: FEELING_EMOJIS[1],
-    notes: "",
-  });
+  const [weightLb, setWeightLb] = useState("");
+  const [date, setDate] = useState(() =>
+    new Date().toISOString().slice(0, 10),
+  );
 
   useEffect(() => {
     if (!hydrated) return;
-    if (!isMedicationSetupComplete(vial)) {
+    if (isDataSetupComplete(vial, progress, doses, primaryGoal)) {
+      router.replace("/app");
+      return;
+    }
+    if (!isPrimaryGoalSet(primaryGoal)) {
       router.replace("/app/onboarding/step-1");
       return;
     }
-    if (progress.length === 0) {
+    if (!isMedicationSetupComplete(vial)) {
       router.replace("/app/onboarding/step-2");
       return;
     }
-    if (doses.length > 0) {
-      router.replace("/app");
+    if (progress.length > 0 && doses.length === 0) {
+      router.replace("/app/onboarding/step-4");
     }
-  }, [hydrated, vial, progress, doses, router]);
+  }, [hydrated, primaryGoal, vial, progress, doses, router]);
 
-  const mgPerUnit = useMemo(() => getMgPerUnitFromVial(vial), [vial]);
-
-  const previewMg = unitsToMg(parseNumericAmount(form.units) || 0, mgPerUnit);
-
-  function onFinish(e) {
+  function onContinue(e) {
     e.preventDefault();
-    const units = parseNumericAmount(form.units) || 0;
-    if (units <= 0) return;
-    const mg = unitsToMg(units, mgPerUnit);
-    addDose({
+    const w = Number.parseFloat(weightLb);
+    if (Number.isNaN(w) || w <= 0) return;
+    addProgress({
       id: newId(),
-      date: form.date,
-      units,
-      mg: Math.round(mg * 1000) / 1000,
-      doseType: form.doseType,
-      feeling: form.feeling,
-      sideEffects: [],
-      notes: form.notes.trim() || "First dose",
+      date,
+      weightLb: w,
+      feeling: FEELING_EMOJIS[1],
+      notes: "Starting weight",
     });
-    completeOnboarding();
-    router.push("/app");
+    router.push("/app/onboarding/step-4");
   }
 
   if (!hydrated) {
@@ -75,117 +61,57 @@ export default function OnboardingStep3Page() {
     );
   }
 
-  const validUnits = (parseNumericAmount(form.units) || 0) > 0;
+  const valid = !Number.isNaN(Number.parseFloat(weightLb)) &&
+    Number.parseFloat(weightLb) > 0;
 
   return (
     <div className="flex flex-col gap-5">
       <OnboardingChrome step={3} />
       <header>
         <p className="text-xs font-medium uppercase tracking-wide text-teal-700 dark:text-teal-300">
-          Step 3 · First dose
+          Step 3 · Starting weight
         </p>
         <h1 className="mt-1 text-2xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-50">
-          Log your first dose
+          Add your starting weight
         </h1>
         <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
-          Units and mg use the vial you set in step 1—adjust the defaults if
-          needed.
+          One number is enough—we&apos;ll use it as your baseline on the
+          dashboard.
         </p>
       </header>
 
       <Card>
-        <form className="space-y-4" onSubmit={onFinish}>
+        <form className="space-y-4" onSubmit={onContinue}>
           <div>
             <label className="text-xs font-medium text-zinc-600 dark:text-zinc-400">
               Date
             </label>
             <input
               type="date"
-              value={form.date}
-              onChange={(e) =>
-                setForm((f) => ({ ...f, date: e.target.value }))
-              }
+              value={date}
+              onChange={(e) => setDate(e.target.value)}
               className="mt-1 w-full rounded-xl border border-zinc-200 bg-white px-3 py-2.5 text-sm dark:border-zinc-700 dark:bg-zinc-950"
             />
           </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="text-xs font-medium text-zinc-600 dark:text-zinc-400">
-                Units
-              </label>
-              <input
-                inputMode="decimal"
-                value={form.units}
-                onChange={(e) =>
-                  setForm((f) => ({ ...f, units: e.target.value }))
-                }
-                className="mt-1 w-full rounded-xl border border-zinc-200 bg-white px-3 py-2.5 text-sm dark:border-zinc-700 dark:bg-zinc-950"
-              />
-            </div>
-            <div>
-              <label className="text-xs font-medium text-zinc-600 dark:text-zinc-400">
-                Mg (auto)
-              </label>
-              <div className="mt-1 flex h-[42px] items-center rounded-xl border border-dashed border-teal-200 bg-teal-50 px-3 text-sm font-medium text-teal-900 dark:border-teal-900 dark:bg-teal-950 dark:text-teal-100">
-                {previewMg.toFixed(3)} mg
-              </div>
-            </div>
-          </div>
-
-          <div>
-            <p className="text-xs font-medium text-zinc-600 dark:text-zinc-400">
-              Dose type
-            </p>
-            <div className="mt-2 flex flex-wrap gap-2">
-              {DOSE_TYPES.map((t) => {
-                const on = form.doseType === t.id;
-                return (
-                  <button
-                    key={t.id}
-                    type="button"
-                    onClick={() =>
-                      setForm((f) => ({ ...f, doseType: t.id }))
-                    }
-                    className={`rounded-full px-3 py-1.5 text-xs font-semibold ${
-                      on
-                        ? "bg-teal-600 text-white"
-                        : "bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-200"
-                    }`}
-                  >
-                    {t.label}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          <EmojiPicker
-            value={form.feeling}
-            onChange={(emoji) =>
-              setForm((f) => ({ ...f, feeling: emoji }))
-            }
-          />
-
           <div>
             <label className="text-xs font-medium text-zinc-600 dark:text-zinc-400">
-              Notes (optional)
+              Weight (lb)
             </label>
-            <textarea
-              value={form.notes}
-              onChange={(e) =>
-                setForm((f) => ({ ...f, notes: e.target.value }))
-              }
-              rows={2}
+            <input
+              inputMode="decimal"
+              autoFocus
+              value={weightLb}
+              onChange={(e) => setWeightLb(e.target.value)}
+              placeholder="e.g. 185"
               className="mt-1 w-full rounded-xl border border-zinc-200 bg-white px-3 py-2.5 text-sm dark:border-zinc-700 dark:bg-zinc-950"
             />
           </div>
-
           <button
             type="submit"
-            disabled={!validUnits}
+            disabled={!valid}
             className="w-full rounded-xl bg-teal-600 py-3 text-sm font-semibold text-white hover:bg-teal-700 disabled:cursor-not-allowed disabled:opacity-50"
           >
-            Finish Setup
+            Continue
           </button>
         </form>
       </Card>

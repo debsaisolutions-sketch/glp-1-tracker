@@ -8,7 +8,8 @@ import {
   useMemo,
   useState,
 } from "react";
-import { EMPTY_VIAL_SETTINGS } from "@/lib/mock-data";
+import { PRIMARY_GOAL_OPTIONS } from "@/lib/constants";
+import { EMPTY_SHAKE_NUTRITION_PREFS, EMPTY_VIAL_SETTINGS } from "@/lib/mock-data";
 import { isDataSetupComplete } from "@/lib/setup-status";
 import { parseNumericAmount } from "@/lib/glp1-helpers";
 
@@ -40,6 +41,26 @@ function mergeVialFromStorage(raw) {
     else merged.simpleStrengthPreset = null;
   }
   return merged;
+}
+
+const PRIMARY_GOAL_IDS = new Set(PRIMARY_GOAL_OPTIONS.map((o) => o.id));
+
+function normalizePrimaryGoal(raw) {
+  if (raw == null || raw === "") return null;
+  const s = String(raw);
+  return PRIMARY_GOAL_IDS.has(s) ? s : null;
+}
+
+function mergeShakeNutritionPrefs(raw) {
+  const base = { ...EMPTY_SHAKE_NUTRITION_PREFS };
+  if (!raw || typeof raw !== "object") return base;
+  return {
+    proteinPerScoop: Math.max(
+      0,
+      parseNumericAmount(raw.proteinPerScoop) || 0,
+    ),
+    carbsPerScoop: Math.max(0, parseNumericAmount(raw.carbsPerScoop) || 0),
+  };
 }
 
 const STORAGE_KEY = "glp1-tracker-state-v1";
@@ -83,6 +104,10 @@ export function AppStateProvider({ children }) {
   const [doses, setDosesState] = useState([]);
   const [progress, setProgressState] = useState([]);
   const [daily, setDailyState] = useState([]);
+  const [shakeNutritionPrefs, setShakeNutritionPrefsState] = useState(() => ({
+    ...EMPTY_SHAKE_NUTRITION_PREFS,
+  }));
+  const [primaryGoal, setPrimaryGoalState] = useState(null);
   const [onboardingComplete, setOnboardingCompleteState] = useState(false);
 
   useEffect(() => {
@@ -92,6 +117,10 @@ export function AppStateProvider({ children }) {
       setDosesState(ensureEntryIds(saved.doses, "d"));
       setProgressState(ensureEntryIds(saved.progress, "p"));
       setDailyState(ensureEntryIds(saved.daily, "l"));
+      setShakeNutritionPrefsState(
+        mergeShakeNutritionPrefs(saved.shakeNutritionPrefs),
+      );
+      setPrimaryGoalState(normalizePrimaryGoal(saved.primaryGoal));
       setOnboardingCompleteState(!!saved.onboardingComplete);
     }
     setHydrated(true);
@@ -104,16 +133,27 @@ export function AppStateProvider({ children }) {
       doses,
       progress,
       daily,
+      shakeNutritionPrefs,
+      primaryGoal,
       onboardingComplete,
     });
-  }, [hydrated, vial, doses, progress, daily, onboardingComplete]);
+  }, [
+    hydrated,
+    vial,
+    doses,
+    progress,
+    daily,
+    shakeNutritionPrefs,
+    primaryGoal,
+    onboardingComplete,
+  ]);
 
   useEffect(() => {
     if (!hydrated) return;
-    if (isDataSetupComplete(vial, progress, doses)) {
+    if (isDataSetupComplete(vial, progress, doses, primaryGoal)) {
       setOnboardingCompleteState(true);
     }
-  }, [hydrated, vial, progress, doses]);
+  }, [hydrated, vial, progress, doses, primaryGoal]);
 
   const setVial = useCallback((next) => {
     setVialState((s) => (typeof next === "function" ? next(s) : next));
@@ -143,6 +183,19 @@ export function AppStateProvider({ children }) {
     setDailyState((x) => [row, ...x]);
   }, []);
 
+  const setShakeNutritionPrefs = useCallback((next) => {
+    setShakeNutritionPrefsState((s) =>
+      typeof next === "function" ? next(s) : { ...s, ...next },
+    );
+  }, []);
+
+  const setPrimaryGoal = useCallback((next) => {
+    setPrimaryGoalState((g) => {
+      if (typeof next === "function") return normalizePrimaryGoal(next(g));
+      return normalizePrimaryGoal(next);
+    });
+  }, []);
+
   const completeOnboarding = useCallback(() => {
     setOnboardingCompleteState(true);
   }, []);
@@ -165,6 +218,10 @@ export function AppStateProvider({ children }) {
       daily,
       setDaily,
       addDaily,
+      shakeNutritionPrefs,
+      setShakeNutritionPrefs,
+      primaryGoal,
+      setPrimaryGoal,
       onboardingComplete,
       completeOnboarding,
       skipOnboarding,
@@ -182,6 +239,10 @@ export function AppStateProvider({ children }) {
       daily,
       setDaily,
       addDaily,
+      shakeNutritionPrefs,
+      setShakeNutritionPrefs,
+      primaryGoal,
+      setPrimaryGoal,
       onboardingComplete,
       completeOnboarding,
       skipOnboarding,
