@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { PublicHeader } from "@/components/PublicHeader";
 import { Card } from "@/components/Card";
+import { StartTrialButton } from "@/components/StartTrialButton";
 
 export default function LandingPage() {
   return (
@@ -9,22 +10,20 @@ export default function LandingPage() {
       <main className="mx-auto flex w-full max-w-lg flex-1 flex-col gap-8 px-4 py-10 sm:max-w-4xl sm:py-14">
         <section className="space-y-4 text-center sm:text-left">
           <p className="text-sm font-medium uppercase tracking-wide text-teal-700 dark:text-teal-300">
-            Mobile-first tracking
+            RealHealthPath
+          </p>
+          <p className="text-sm text-zinc-600 dark:text-zinc-400">
+            Understand your body. Not just your dose.
           </p>
           <h1 className="text-balance text-3xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-50 sm:text-4xl">
-            A calmer way to track your GLP-1 journey
+            A calmer way to track your health journey
           </h1>
           <p className="text-pretty text-lg leading-relaxed text-zinc-600 dark:text-zinc-400">
             Log doses with automatic mg math, capture daily notes, and watch
             weight trends—all in one friendly dashboard built for your phone.
           </p>
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-            <Link
-              href="/pricing"
-              className="inline-flex items-center justify-center rounded-2xl bg-teal-600 px-5 py-3 text-center text-sm font-semibold text-white shadow-sm hover:bg-teal-700"
-            >
-              Start your 7-day free trial
-            </Link>
+            <StartTrialButton className="inline-flex w-full items-center justify-center rounded-2xl bg-teal-600 px-5 py-3 text-center text-sm font-semibold text-white shadow-sm hover:bg-teal-700 disabled:cursor-not-allowed disabled:opacity-75 sm:w-auto" />
             <span
               className="inline-flex cursor-default items-center justify-center rounded-2xl border border-dashed border-zinc-300 bg-white/80 px-5 py-3 text-center text-sm font-semibold text-zinc-500 dark:border-zinc-600 dark:bg-zinc-900/60 dark:text-zinc-400"
               title="Transparent monthly pricing."
@@ -39,13 +38,7 @@ export default function LandingPage() {
             No surprise billing. You can cancel before the trial ends.
           </p>
           <p className="text-xs text-zinc-500 dark:text-zinc-400">
-            Accounts and billing are not live yet—this is a local preview.{" "}
-            <Link
-              href="/pricing"
-              className="font-medium text-teal-700 underline-offset-2 hover:underline dark:text-teal-300"
-            >
-              Join waitlist &amp; pricing preview
-            </Link>
+            Honest billing: 7 days free, then $9/month unless you cancel.
           </p>
         </section>
 
@@ -81,9 +74,8 @@ export default function LandingPage() {
             Ready when you are
           </p>
           <p className="mt-2 text-sm leading-relaxed text-teal-800/90 dark:text-teal-200/90">
-            This preview uses mock data—your future account will sync across
-            devices. No Stripe or database wiring yet; just a fast, polished
-            shell you can iterate on.
+            Keep tracking simple with one subscription, one dashboard, and no
+            surprise billing.
           </p>
           <div className="mt-4">
             <Link
@@ -96,7 +88,7 @@ export default function LandingPage() {
         </section>
       </main>
       <footer className="border-t border-zinc-200/80 py-6 text-center text-xs text-zinc-500 dark:border-zinc-800">
-        GLP-1 Tracker · Educational mockup · Not medical advice
+        RealHealthPath · Educational mockup · Not medical advice
       </footer>
     </div>
   );

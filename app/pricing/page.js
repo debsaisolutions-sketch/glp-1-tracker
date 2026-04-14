@@ -1,10 +1,10 @@
-import Link from "next/link";
 import { PublicHeader } from "@/components/PublicHeader";
 import { Card } from "@/components/Card";
+import { StartTrialButton } from "@/components/StartTrialButton";
 
 const tiers = [
   {
-    name: "GLP-1 Tracker",
+    name: "RealHealthPath",
     price: "$9",
     period: "/mo",
     blurb: "Start your 7-day free trial",
@@ -76,12 +76,9 @@ export default function PricingPage() {
                   </li>
                 ))}
               </ul>
-              <Link
-                href="/app"
-                className="mt-6 flex w-full items-center justify-center rounded-xl bg-teal-600 py-2.5 text-sm font-semibold text-white hover:bg-teal-700"
-              >
-                Start your 7-day free trial
-              </Link>
+              <div className="mt-6">
+                <StartTrialButton className="flex w-full items-center justify-center rounded-xl bg-teal-600 py-2.5 text-sm font-semibold text-white hover:bg-teal-700 disabled:cursor-not-allowed disabled:opacity-75" />
+              </div>
             </Card>
           ))}
         </div>

@@ -8,7 +8,7 @@ export function PublicHeader() {
           href="/"
           className="text-sm font-semibold tracking-tight text-teal-800 dark:text-teal-200"
         >
-          GLP-1 Tracker
+          RealHealthPath
         </Link>
         <nav className="flex items-center gap-3 text-sm">
           <Link

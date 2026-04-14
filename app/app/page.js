@@ -287,7 +287,7 @@ export default function DashboardPage() {
           </span>
         </h1>
         <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
-          Here&apos;s a snapshot of your GLP-1 rhythm—everything saves on this
+          Here&apos;s a snapshot of your health rhythm—everything saves on this
           device.
         </p>
       </header>

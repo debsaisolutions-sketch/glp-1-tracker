@@ -13,8 +13,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata = {
-  title: "GLP-1 Tracker",
-  description: "Track GLP-1 doses, daily habits, and weight progress.",
+  title: "RealHealthPath",
+  description: "Track doses, daily habits, and weight progress with RealHealthPath.",
 };
 
 export default function RootLayout({ children }) {
