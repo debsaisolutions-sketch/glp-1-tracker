@@ -44,6 +44,18 @@ function mergeVialFromStorage(raw) {
 
 const STORAGE_KEY = "glp1-tracker-state-v1";
 
+function ensureEntryIds(entries, prefix) {
+  if (!Array.isArray(entries)) return [];
+  return entries.map((row, index) => {
+    if (row && typeof row === "object" && row.id) return row;
+    const base = row && typeof row === "object" ? row : {};
+    return {
+      ...base,
+      id: `${prefix}-m${index}-${Math.random().toString(36).slice(2, 10)}`,
+    };
+  });
+}
+
 function readStorage() {
   if (typeof window === "undefined") return null;
   try {
@@ -77,9 +89,9 @@ export function AppStateProvider({ children }) {
     const saved = readStorage();
     if (saved && typeof saved === "object") {
       setVialState(mergeVialFromStorage(saved.vial));
-      setDosesState(Array.isArray(saved.doses) ? saved.doses : []);
-      setProgressState(Array.isArray(saved.progress) ? saved.progress : []);
-      setDailyState(Array.isArray(saved.daily) ? saved.daily : []);
+      setDosesState(ensureEntryIds(saved.doses, "d"));
+      setProgressState(ensureEntryIds(saved.progress, "p"));
+      setDailyState(ensureEntryIds(saved.daily, "l"));
       setOnboardingCompleteState(!!saved.onboardingComplete);
     }
     setHydrated(true);

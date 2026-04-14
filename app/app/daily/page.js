@@ -16,21 +16,66 @@ function sortByDateDesc(items) {
   );
 }
 
-export default function DailyPage() {
-  const { daily: logs, addDaily, hydrated } = useAppState();
-  const [form, setForm] = useState({
+function emptyDailyForm() {
+  return {
     date: new Date().toISOString().slice(0, 10),
     foodNotes: "",
     proteinGrams: "",
     waterOz: "",
     feeling: FEELING_EMOJIS[2],
     notes: "",
-  });
+  };
+}
+
+const btnEdit =
+  "touch-manipulation rounded-lg border border-zinc-200 bg-white px-3 py-2 text-xs font-semibold text-zinc-800 hover:bg-zinc-50 active:bg-zinc-100 dark:border-zinc-600 dark:bg-zinc-900 dark:text-zinc-100 dark:hover:bg-zinc-800";
+const btnDelete =
+  "touch-manipulation rounded-lg border border-red-200 bg-white px-3 py-2 text-xs font-semibold text-red-700 hover:bg-red-50 active:bg-red-100 dark:border-red-900/60 dark:bg-zinc-900 dark:text-red-400 dark:hover:bg-red-950/40";
+
+export default function DailyPage() {
+  const { daily: logs, addDaily, setDaily, hydrated } = useAppState();
+  const [editingId, setEditingId] = useState(null);
+  const [form, setForm] = useState(emptyDailyForm);
+
+  function cancelEdit() {
+    setEditingId(null);
+    setForm(emptyDailyForm());
+  }
+
+  function beginEdit(log) {
+    setEditingId(log.id);
+    setForm({
+      date: log.date,
+      foodNotes: log.foodNotes ?? "",
+      proteinGrams:
+        log.proteinGrams != null && log.proteinGrams !== ""
+          ? String(log.proteinGrams)
+          : "",
+      waterOz:
+        log.waterOz != null && log.waterOz !== ""
+          ? String(log.waterOz)
+          : "",
+      feeling: log.feeling || FEELING_EMOJIS[2],
+      notes: log.notes ?? "",
+    });
+  }
+
+  function confirmDeleteDaily(id) {
+    if (
+      !window.confirm(
+        "Delete this daily log? This removes it from this device.",
+      )
+    ) {
+      return;
+    }
+    setDaily((list) => list.filter((x) => x.id !== id));
+    if (editingId === id) cancelEdit();
+  }
 
   function submitLog(e) {
     e.preventDefault();
     const row = {
-      id: newId(),
+      id: editingId ?? newId(),
       date: form.date,
       foodNotes: form.foodNotes.trim(),
       proteinGrams: Number.parseFloat(form.proteinGrams) || 0,
@@ -38,14 +83,13 @@ export default function DailyPage() {
       feeling: form.feeling,
       notes: form.notes.trim(),
     };
-    addDaily(row);
-    setForm((f) => ({
-      ...f,
-      foodNotes: "",
-      proteinGrams: "",
-      waterOz: "",
-      notes: "",
-    }));
+    if (editingId) {
+      setDaily((list) => list.map((x) => (x.id === editingId ? row : x)));
+      setEditingId(null);
+    } else {
+      addDaily(row);
+    }
+    setForm(emptyDailyForm());
   }
 
   const sorted = sortByDateDesc(logs);
@@ -73,8 +117,17 @@ export default function DailyPage() {
 
       <Card>
         <h2 className="text-sm font-semibold text-zinc-900 dark:text-zinc-50">
-          Add daily log
+          {editingId ? "Edit daily log" : "Add daily log"}
         </h2>
+        {editingId ? (
+          <p
+            className="mt-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-relaxed text-amber-950 dark:border-amber-900/60 dark:bg-amber-950/35 dark:text-amber-100"
+            role="status"
+          >
+            <span className="font-semibold">Editing</span> — save to update this
+            day, or cancel to add a new log instead.
+          </p>
+        ) : null}
         <form className="mt-4 space-y-4" onSubmit={submitLog}>
           <div>
             <label className="text-xs font-medium text-zinc-600 dark:text-zinc-400">
@@ -151,12 +204,23 @@ export default function DailyPage() {
             />
           </div>
 
-          <button
-            type="submit"
-            className="w-full rounded-xl bg-teal-600 py-2.5 text-sm font-semibold text-white hover:bg-teal-700"
-          >
-            Save log (local only)
-          </button>
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+            <button
+              type="submit"
+              className="w-full rounded-xl bg-teal-600 py-2.5 text-sm font-semibold text-white hover:bg-teal-700 sm:flex-1"
+            >
+              {editingId ? "Save changes" : "Save log (local only)"}
+            </button>
+            {editingId ? (
+              <button
+                type="button"
+                onClick={cancelEdit}
+                className="w-full rounded-xl border border-zinc-200 bg-white py-2.5 text-sm font-semibold text-zinc-800 hover:bg-zinc-50 dark:border-zinc-600 dark:bg-zinc-900 dark:text-zinc-100 dark:hover:bg-zinc-800 sm:w-auto sm:shrink-0 sm:px-5"
+              >
+                Cancel edit
+              </button>
+            ) : null}
+          </div>
         </form>
       </Card>
 
@@ -168,9 +232,16 @@ export default function DailyPage() {
           <p className="text-sm text-zinc-500">No daily logs yet.</p>
         ) : null}
         {sorted.map((log) => (
-          <Card key={log.id}>
+          <Card
+            key={log.id}
+            className={
+              editingId === log.id
+                ? "ring-2 ring-teal-500 ring-offset-2 ring-offset-zinc-50 dark:ring-offset-zinc-950"
+                : ""
+            }
+          >
             <div className="flex items-start justify-between gap-2">
-              <div>
+              <div className="min-w-0 flex-1">
                 <p className="text-sm font-semibold text-zinc-900 dark:text-zinc-50">
                   {log.date}{" "}
                   <span className="text-base" aria-hidden>
@@ -180,6 +251,22 @@ export default function DailyPage() {
                 <p className="text-xs text-zinc-500">
                   Protein {log.proteinGrams} g · Water {log.waterOz} oz
                 </p>
+              </div>
+              <div className="flex shrink-0 gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => beginEdit(log)}
+                  className={btnEdit}
+                >
+                  Edit
+                </button>
+                <button
+                  type="button"
+                  onClick={() => confirmDeleteDaily(log.id)}
+                  className={btnDelete}
+                >
+                  Delete
+                </button>
               </div>
             </div>
             {log.foodNotes ? (

@@ -21,13 +21,13 @@ export function PublicHeader() {
             href="/login"
             className="text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100"
           >
-            Log in
+            Log in (preview)
           </Link>
           <Link
-            href="/signup"
+            href="/app"
             className="rounded-full bg-teal-600 px-3 py-1.5 font-medium text-white shadow-sm hover:bg-teal-700"
           >
-            Sign up
+            Preview App
           </Link>
         </nav>
       </div>

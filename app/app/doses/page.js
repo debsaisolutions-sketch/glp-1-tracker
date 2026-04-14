@@ -26,16 +26,26 @@ function sortByDateDesc(items) {
   );
 }
 
-export default function DosesPage() {
-  const { vial, doses, addDose, hydrated } = useAppState();
-  const [form, setForm] = useState({
+function emptyDoseForm() {
+  return {
     date: new Date().toISOString().slice(0, 10),
     units: 50,
     doseType: "full",
     feeling: FEELING_EMOJIS[1],
     sideEffects: [],
     notes: "",
-  });
+  };
+}
+
+const btnEdit =
+  "touch-manipulation rounded-lg border border-zinc-200 bg-white px-3 py-2 text-xs font-semibold text-zinc-800 hover:bg-zinc-50 active:bg-zinc-100 dark:border-zinc-600 dark:bg-zinc-900 dark:text-zinc-100 dark:hover:bg-zinc-800";
+const btnDelete =
+  "touch-manipulation rounded-lg border border-red-200 bg-white px-3 py-2 text-xs font-semibold text-red-700 hover:bg-red-50 active:bg-red-100 dark:border-red-900/60 dark:bg-zinc-900 dark:text-red-400 dark:hover:bg-red-950/40";
+
+export default function DosesPage() {
+  const { vial, doses, addDose, setDoses, hydrated } = useAppState();
+  const [editingId, setEditingId] = useState(null);
+  const [form, setForm] = useState(emptyDoseForm);
 
   const mgPerUnit = getMgPerUnitFromVial(vial);
 
@@ -54,12 +64,41 @@ export default function DosesPage() {
     });
   }
 
+  function cancelEdit() {
+    setEditingId(null);
+    setForm(emptyDoseForm());
+  }
+
+  function beginEdit(d) {
+    setEditingId(d.id);
+    setForm({
+      date: d.date,
+      units: d.units,
+      doseType: d.doseType || "full",
+      feeling: d.feeling || FEELING_EMOJIS[1],
+      sideEffects: Array.isArray(d.sideEffects) ? [...d.sideEffects] : [],
+      notes: d.notes ?? "",
+    });
+  }
+
+  function confirmDeleteDose(id) {
+    if (
+      !window.confirm(
+        "Delete this dose? This removes it from your log on this device.",
+      )
+    ) {
+      return;
+    }
+    setDoses((list) => list.filter((x) => x.id !== id));
+    if (editingId === id) cancelEdit();
+  }
+
   function submitDose(e) {
     e.preventDefault();
     const units = parseNumericAmount(form.units) || 0;
     const mg = unitsToMg(units, mgPerUnit);
     const row = {
-      id: newId(),
+      id: editingId ?? newId(),
       date: form.date,
       units,
       mg: Math.round(mg * 1000) / 1000,
@@ -68,13 +107,13 @@ export default function DosesPage() {
       sideEffects: form.sideEffects,
       notes: form.notes.trim(),
     };
-    addDose(row);
-    setForm((f) => ({
-      ...f,
-      units: 50,
-      sideEffects: [],
-      notes: "",
-    }));
+    if (editingId) {
+      setDoses((list) => list.map((x) => (x.id === editingId ? row : x)));
+      setEditingId(null);
+    } else {
+      addDose(row);
+    }
+    setForm(emptyDoseForm());
   }
 
   const sorted = sortByDateDesc(doses);
@@ -111,8 +150,18 @@ export default function DosesPage() {
 
       <Card>
         <h2 className="text-sm font-semibold text-zinc-900 dark:text-zinc-50">
-          Log a dose
+          {editingId ? "Edit dose" : "Log a dose"}
         </h2>
+        {editingId ? (
+          <p
+            className="mt-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-relaxed text-amber-950 dark:border-amber-900/60 dark:bg-amber-950/35 dark:text-amber-100"
+            role="status"
+          >
+            <span className="font-semibold">Editing</span> — your changes
+            replace this entry when you save. Or cancel to go back to a new
+            entry.
+          </p>
+        ) : null}
         <form className="mt-4 space-y-4" onSubmit={submitDose}>
           <div>
             <label className="text-xs font-medium text-zinc-600 dark:text-zinc-400">
@@ -219,12 +268,23 @@ export default function DosesPage() {
             />
           </div>
 
-          <button
-            type="submit"
-            className="w-full rounded-xl bg-teal-600 py-2.5 text-sm font-semibold text-white hover:bg-teal-700"
-          >
-            Add dose (local only)
-          </button>
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+            <button
+              type="submit"
+              className="w-full rounded-xl bg-teal-600 py-2.5 text-sm font-semibold text-white hover:bg-teal-700 sm:flex-1"
+            >
+              {editingId ? "Save changes" : "Add dose (local only)"}
+            </button>
+            {editingId ? (
+              <button
+                type="button"
+                onClick={cancelEdit}
+                className="w-full rounded-xl border border-zinc-200 bg-white py-2.5 text-sm font-semibold text-zinc-800 hover:bg-zinc-50 dark:border-zinc-600 dark:bg-zinc-900 dark:text-zinc-100 dark:hover:bg-zinc-800 sm:w-auto sm:shrink-0 sm:px-5"
+              >
+                Cancel edit
+              </button>
+            ) : null}
+          </div>
         </form>
       </Card>
 
@@ -236,15 +296,38 @@ export default function DosesPage() {
           <p className="text-sm text-zinc-500">No doses logged yet.</p>
         ) : null}
         {sorted.map((d) => (
-          <Card key={d.id}>
+          <Card
+            key={d.id}
+            className={
+              editingId === d.id
+                ? "ring-2 ring-teal-500 ring-offset-2 ring-offset-zinc-50 dark:ring-offset-zinc-950"
+                : ""
+            }
+          >
             <div className="flex items-start justify-between gap-2">
-              <div>
+              <div className="min-w-0 flex-1">
                 <p className="text-sm font-semibold text-zinc-900 dark:text-zinc-50">
                   {d.mg} mg · {d.units} units
                 </p>
                 <p className="text-xs text-zinc-500">
                   {d.date} · {d.doseType} · {d.feeling}
                 </p>
+              </div>
+              <div className="flex shrink-0 gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => beginEdit(d)}
+                  className={btnEdit}
+                >
+                  Edit
+                </button>
+                <button
+                  type="button"
+                  onClick={() => confirmDeleteDose(d.id)}
+                  className={btnDelete}
+                >
+                  Delete
+                </button>
               </div>
             </div>
             {d.sideEffects.length ? (

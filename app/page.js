@@ -20,18 +20,27 @@ export default function LandingPage() {
           </p>
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
             <Link
-              href="/signup"
+              href="/app"
               className="inline-flex items-center justify-center rounded-2xl bg-teal-600 px-5 py-3 text-center text-sm font-semibold text-white shadow-sm hover:bg-teal-700"
             >
-              Start free
+              Preview App
             </Link>
-            <Link
-              href="/login"
-              className="inline-flex items-center justify-center rounded-2xl border border-zinc-200 bg-white px-5 py-3 text-center text-sm font-semibold text-zinc-800 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100 dark:hover:bg-zinc-800"
+            <span
+              className="inline-flex cursor-default items-center justify-center rounded-2xl border border-dashed border-zinc-300 bg-white/80 px-5 py-3 text-center text-sm font-semibold text-zinc-500 dark:border-zinc-600 dark:bg-zinc-900/60 dark:text-zinc-400"
+              title="Accounts are not available in this test build."
             >
-              Log in
-            </Link>
+              Coming soon
+            </span>
           </div>
+          <p className="text-xs text-zinc-500 dark:text-zinc-400">
+            Accounts and billing are not live yet—this is a local preview.{" "}
+            <Link
+              href="/pricing"
+              className="font-medium text-teal-700 underline-offset-2 hover:underline dark:text-teal-300"
+            >
+              Join waitlist &amp; pricing preview
+            </Link>
+          </p>
         </section>
 
         <section className="grid gap-4 sm:grid-cols-3">

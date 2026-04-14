@@ -35,8 +35,9 @@ export default function PricingPage() {
             Simple pricing
           </h1>
           <p className="mt-2 max-w-2xl text-sm leading-relaxed text-zinc-600 dark:text-zinc-400">
-            Placeholder plans—Stripe checkout is intentionally not wired yet.
-            Use this layout to pitch value and iterate on packaging.
+            Placeholder plans—Stripe checkout and accounts are not wired yet.
+            Use this layout to pitch value; use Preview App to try the tracker
+            locally.
           </p>
         </div>
 
@@ -72,7 +73,7 @@ export default function PricingPage() {
                 ) : null}
               </p>
               <ul className="mt-4 space-y-2 text-sm text-zinc-700 dark:text-zinc-300">
-                               {tier.features.map((f) => (
+                {tier.features.map((f) => (
                   <li key={f} className="flex gap-2">
                     <span className="text-teal-600 dark:text-teal-400" aria-hidden>
                       {"\u2713"}
@@ -81,16 +82,28 @@ export default function PricingPage() {
                   </li>
                 ))}
               </ul>
-              <Link
-                href="/signup"
-                className={`mt-6 flex w-full items-center justify-center rounded-xl py-2.5 text-sm font-semibold ${
-                  tier.highlight
-                    ? "bg-teal-600 text-white hover:bg-teal-700"
-                    : "border border-zinc-200 bg-white text-zinc-900 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-50 dark:hover:bg-zinc-800"
-                }`}
-              >
-                Choose {tier.name}
-              </Link>
+              {tier.name === "Starter" ? (
+                <Link
+                  href="/app"
+                  className="mt-6 flex w-full items-center justify-center rounded-xl bg-teal-600 py-2.5 text-sm font-semibold text-white hover:bg-teal-700"
+                >
+                  Preview App
+                </Link>
+              ) : tier.name === "Plus" ? (
+                <span
+                  className="mt-6 flex w-full cursor-default items-center justify-center rounded-xl border border-dashed border-zinc-300 bg-zinc-50 py-2.5 text-sm font-semibold text-zinc-500 dark:border-zinc-600 dark:bg-zinc-900/40 dark:text-zinc-400"
+                  title="Checkout is not wired in this preview."
+                >
+                  Coming soon
+                </span>
+              ) : (
+                <span
+                  className="mt-6 flex w-full cursor-default items-center justify-center rounded-xl border border-zinc-200 bg-white py-2.5 text-sm font-semibold text-zinc-600 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300"
+                  title="No waitlist form in this preview build."
+                >
+                  Join waitlist
+                </span>
+              )}
             </Card>
           ))}
         </div>

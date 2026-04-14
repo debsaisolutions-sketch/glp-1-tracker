@@ -23,15 +23,25 @@ function sortByDateDesc(items) {
   );
 }
 
-export default function ProgressPage() {
-  const { progress: entries, addProgress, hydrated } = useAppState();
-  const [form, setForm] = useState({
+function emptyProgressForm() {
+  return {
     date: new Date().toISOString().slice(0, 10),
     weightLb: "",
     inches: "",
     feeling: FEELING_EMOJIS[1],
     notes: "",
-  });
+  };
+}
+
+const btnEdit =
+  "touch-manipulation rounded-lg border border-zinc-200 bg-white px-3 py-2 text-xs font-semibold text-zinc-800 hover:bg-zinc-50 active:bg-zinc-100 dark:border-zinc-600 dark:bg-zinc-900 dark:text-zinc-100 dark:hover:bg-zinc-800";
+const btnDelete =
+  "touch-manipulation rounded-lg border border-red-200 bg-white px-3 py-2 text-xs font-semibold text-red-700 hover:bg-red-50 active:bg-red-100 dark:border-red-900/60 dark:bg-zinc-900 dark:text-red-400 dark:hover:bg-red-950/40";
+
+export default function ProgressPage() {
+  const { progress: entries, addProgress, setProgress, hydrated } = useAppState();
+  const [editingId, setEditingId] = useState(null);
+  const [form, setForm] = useState(emptyProgressForm);
 
   const sortedAsc = useMemo(() => sortByDateAsc(entries), [entries]);
   const sortedDesc = useMemo(() => sortByDateDesc(entries), [entries]);
@@ -42,26 +52,57 @@ export default function ProgressPage() {
     latest && baseline ? latest.weightLb - baseline.weightLb : 0;
   const message = encouragingMessage(change);
 
+  function cancelEdit() {
+    setEditingId(null);
+    setForm(emptyProgressForm());
+  }
+
+  function beginEdit(p) {
+    setEditingId(p.id);
+    setForm({
+      date: p.date,
+      weightLb: String(p.weightLb),
+      inches:
+        typeof p.inches === "number" && !Number.isNaN(p.inches)
+          ? String(p.inches)
+          : "",
+      feeling: p.feeling || FEELING_EMOJIS[1],
+      notes: p.notes ?? "",
+    });
+  }
+
+  function confirmDeleteProgress(id) {
+    if (
+      !window.confirm(
+        "Delete this weigh-in? This removes it from this device.",
+      )
+    ) {
+      return;
+    }
+    setProgress((list) => list.filter((x) => x.id !== id));
+    if (editingId === id) cancelEdit();
+  }
+
   function submitEntry(e) {
     e.preventDefault();
     const w = Number.parseFloat(form.weightLb);
     if (Number.isNaN(w)) return;
     const inchesVal = form.inches.trim();
     const row = {
-      id: newId(),
+      id: editingId ?? newId(),
       date: form.date,
       weightLb: w,
       inches: inchesVal === "" ? undefined : Number.parseFloat(inchesVal),
       feeling: form.feeling,
       notes: form.notes.trim(),
     };
-    addProgress(row);
-    setForm((f) => ({
-      ...f,
-      weightLb: "",
-      inches: "",
-      notes: "",
-    }));
+    if (editingId) {
+      setProgress((list) => list.map((x) => (x.id === editingId ? row : x)));
+      setEditingId(null);
+    } else {
+      addProgress(row);
+    }
+    setForm(emptyProgressForm());
   }
 
   if (!hydrated) {
@@ -123,8 +164,17 @@ export default function ProgressPage() {
 
       <Card>
         <h2 className="text-sm font-semibold text-zinc-900 dark:text-zinc-50">
-          Log weigh-in
+          {editingId ? "Edit weigh-in" : "Log weigh-in"}
         </h2>
+        {editingId ? (
+          <p
+            className="mt-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-relaxed text-amber-950 dark:border-amber-900/60 dark:bg-amber-950/35 dark:text-amber-100"
+            role="status"
+          >
+            <span className="font-semibold">Editing</span> — save to update this
+            entry, or cancel to log a new weigh-in.
+          </p>
+        ) : null}
         <form className="mt-4 space-y-4" onSubmit={submitEntry}>
           <div>
             <label className="text-xs font-medium text-zinc-600 dark:text-zinc-400">
@@ -190,12 +240,23 @@ export default function ProgressPage() {
             />
           </div>
 
-          <button
-            type="submit"
-            className="w-full rounded-xl bg-teal-600 py-2.5 text-sm font-semibold text-white hover:bg-teal-700"
-          >
-            Save entry (local only)
-          </button>
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+            <button
+              type="submit"
+              className="w-full rounded-xl bg-teal-600 py-2.5 text-sm font-semibold text-white hover:bg-teal-700 sm:flex-1"
+            >
+              {editingId ? "Save changes" : "Save entry (local only)"}
+            </button>
+            {editingId ? (
+              <button
+                type="button"
+                onClick={cancelEdit}
+                className="w-full rounded-xl border border-zinc-200 bg-white py-2.5 text-sm font-semibold text-zinc-800 hover:bg-zinc-50 dark:border-zinc-600 dark:bg-zinc-900 dark:text-zinc-100 dark:hover:bg-zinc-800 sm:w-auto sm:shrink-0 sm:px-5"
+              >
+                Cancel edit
+              </button>
+            ) : null}
+          </div>
         </form>
       </Card>
 
@@ -207,17 +268,44 @@ export default function ProgressPage() {
           <p className="text-sm text-zinc-500">No weigh-ins yet.</p>
         ) : null}
         {sortedDesc.map((p) => (
-          <Card key={p.id}>
-            <p className="text-sm font-semibold text-zinc-900 dark:text-zinc-50">
-              {p.weightLb} lb{" "}
-              <span className="text-base font-normal" aria-hidden>
-                {p.feeling}
-              </span>
-            </p>
-            <p className="text-xs text-zinc-500">
-              {p.date}
-              {typeof p.inches === "number" ? ` · ${p.inches}"` : ""}
-            </p>
+          <Card
+            key={p.id}
+            className={
+              editingId === p.id
+                ? "ring-2 ring-teal-500 ring-offset-2 ring-offset-zinc-50 dark:ring-offset-zinc-950"
+                : ""
+            }
+          >
+            <div className="flex items-start justify-between gap-2">
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-semibold text-zinc-900 dark:text-zinc-50">
+                  {p.weightLb} lb{" "}
+                  <span className="text-base font-normal" aria-hidden>
+                    {p.feeling}
+                  </span>
+                </p>
+                <p className="text-xs text-zinc-500">
+                  {p.date}
+                  {typeof p.inches === "number" ? ` · ${p.inches}"` : ""}
+                </p>
+              </div>
+              <div className="flex shrink-0 gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => beginEdit(p)}
+                  className={btnEdit}
+                >
+                  Edit
+                </button>
+                <button
+                  type="button"
+                  onClick={() => confirmDeleteProgress(p.id)}
+                  className={btnDelete}
+                >
+                  Delete
+                </button>
+              </div>
+            </div>
             {p.notes ? (
               <p className="mt-2 text-sm text-zinc-700 dark:text-zinc-300">
                 {p.notes}
