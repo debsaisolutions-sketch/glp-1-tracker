@@ -43,19 +43,6 @@ export function StartTrialButton({ className }) {
       return;
     }
 
-    const publishableKey = process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY;
-    if (publishableKey && payload?.sessionId) {
-      const stripe = await loadStripe(publishableKey);
-      if (stripe) {
-        const { error } = await stripe.redirectToCheckout({
-          sessionId: payload.sessionId,
-        });
-        if (!error) return;
-        if (error?.message) setErrorMessage(error.message);
-        return;
-      }
-    }
-
     window.location.assign(payload.url);
   }
 
