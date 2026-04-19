@@ -14,8 +14,8 @@ export async function POST(req) {
           quantity: 1,
         },
       ],
-      success_url: `${process.env.NEXT_PUBLIC_SITE_URL}/success`,
-      cancel_url: `${process.env.NEXT_PUBLIC_SITE_URL}/`,
+      success_url: `${process.env.NEXT_PUBLIC_SITE_URL}/checkout/success`,
+      cancel_url: `${process.env.NEXT_PUBLIC_SITE_URL}/checkout/cancel`,
       customer_email: email || undefined,
     });
 
