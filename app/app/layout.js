@@ -1,13 +1,16 @@
 import { AppShell } from "@/components/AppShell";
 import { AppStateProvider } from "@/components/AppStateContext";
 import { AppAuthGuard } from "@/components/AppAuthGuard";
+import { AppAccessGuard } from "@/components/AppAccessGuard";
 
 export default function AppLayout({ children }) {
   return (
     <AppAuthGuard>
-      <AppStateProvider>
-        <AppShell>{children}</AppShell>
-      </AppStateProvider>
+      <AppAccessGuard>
+        <AppStateProvider>
+          <AppShell>{children}</AppShell>
+        </AppStateProvider>
+      </AppAccessGuard>
     </AppAuthGuard>
   );
 }
