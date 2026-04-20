@@ -59,6 +59,23 @@ function normalizeGoalWeight(raw) {
   return Number.isFinite(value) && value > 0 ? value : null;
 }
 
+function readGoalWeightFromProfile(profile) {
+  if (!profile || typeof profile !== "object") return null;
+  const candidates = [
+    profile.goal_weight_lb,
+    profile.goal_weight,
+    profile.target_weight_lb,
+    profile.target_weight,
+    profile.goalWeight,
+    profile.goalWeightLb,
+  ];
+  for (const candidate of candidates) {
+    const normalized = normalizeGoalWeight(candidate);
+    if (normalized != null) return normalized;
+  }
+  return null;
+}
+
 function mergeShakeNutritionPrefs(raw) {
   const base = { ...EMPTY_SHAKE_NUTRITION_PREFS };
   if (!raw || typeof raw !== "object") return base;
@@ -260,7 +277,7 @@ async function loadSupabaseSnapshot(userId) {
         : null,
     ),
     primaryGoal: normalizePrimaryGoal(profileResult.data?.primary_goal),
-    goalWeight: normalizeGoalWeight(profileResult.data?.goal_weight_lb),
+    goalWeight: readGoalWeightFromProfile(profileResult.data),
     onboardingComplete: !!profileResult.data?.onboarding_complete,
   };
 }
@@ -283,15 +300,27 @@ async function replaceUserRows(tableName, userId, rows) {
 async function syncSnapshotToSupabase(userId, snapshot) {
   if (!supabase || !userId) return;
 
-  const { error: profileError } = await supabase.from("profiles").upsert(
-    {
-      user_id: userId,
-      primary_goal: snapshot.primaryGoal,
-      goal_weight_lb: snapshot.goalWeight,
-      onboarding_complete: !!snapshot.onboardingComplete,
-    },
-    { onConflict: "user_id" },
-  );
+  const profileBase = {
+    user_id: userId,
+    primary_goal: snapshot.primaryGoal,
+    onboarding_complete: !!snapshot.onboardingComplete,
+  };
+  const profilePayloads = [
+    { ...profileBase, goal_weight_lb: snapshot.goalWeight },
+    { ...profileBase, goal_weight: snapshot.goalWeight },
+    profileBase,
+  ];
+  let profileError = null;
+  for (const payload of profilePayloads) {
+    const result = await supabase
+      .from("profiles")
+      .upsert(payload, { onConflict: "user_id" });
+    if (!result.error) {
+      profileError = null;
+      break;
+    }
+    profileError = result.error;
+  }
   if (profileError) throw profileError;
 
   const { error: medicationError } = await supabase
@@ -434,7 +463,14 @@ export function AppStateProvider({ children }) {
       try {
         const remote = await loadSupabaseSnapshot(session.user.id);
         if (!isMounted) return;
-        applySnapshot(remote || buildDefaultSnapshot());
+        const localFallback = buildLocalSnapshot();
+        applySnapshot({
+          ...(remote || buildDefaultSnapshot()),
+          goalWeight:
+            remote?.goalWeight != null
+              ? remote.goalWeight
+              : localFallback.goalWeight,
+        });
         skipNextSupabaseSyncRef.current = true;
         setStorageMode("supabase");
         setActiveUserId(session.user.id);
@@ -473,7 +509,14 @@ export function AppStateProvider({ children }) {
       try {
         const remote = await loadSupabaseSnapshot(session.user.id);
         if (!isMounted) return;
-        applySnapshot(remote || buildDefaultSnapshot());
+        const localFallback = buildLocalSnapshot();
+        applySnapshot({
+          ...(remote || buildDefaultSnapshot()),
+          goalWeight:
+            remote?.goalWeight != null
+              ? remote.goalWeight
+              : localFallback.goalWeight,
+        });
         skipNextSupabaseSyncRef.current = true;
         setStorageMode("supabase");
         setActiveUserId(session.user.id);

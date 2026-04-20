@@ -8,7 +8,6 @@ import { useAppState } from "@/components/AppStateContext";
 import {
   getMgPerUnitFromVial,
   parseNumericAmount,
-  weeklyDoseTotalMg,
 } from "@/lib/glp1-helpers";
 import {
   collectFoodNoteStrings,
@@ -60,6 +59,42 @@ function formatEntryDate(entry) {
     day: "numeric",
     year: "numeric",
   }).format(parsed);
+}
+
+function formatCalendarDate(date) {
+  if (!(date instanceof Date) || !Number.isFinite(date.getTime())) return "\u2014";
+  return new Intl.DateTimeFormat("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  }).format(date);
+}
+
+function formatShortMonthDay(date) {
+  if (!(date instanceof Date) || !Number.isFinite(date.getTime())) return "\u2014";
+  return new Intl.DateTimeFormat("en-US", {
+    month: "short",
+    day: "numeric",
+  }).format(date);
+}
+
+function parseLocalDateStart(raw) {
+  if (!raw) return null;
+  if (typeof raw === "string" && /^\d{4}-\d{2}-\d{2}$/.test(raw)) {
+    const [y, m, d] = raw.split("-").map((part) => Number.parseInt(part, 10));
+    return new Date(y, m - 1, d, 0, 0, 0, 0);
+  }
+  const parsed = new Date(raw);
+  if (!Number.isFinite(parsed.getTime())) return null;
+  parsed.setHours(0, 0, 0, 0);
+  return parsed;
+}
+
+function localDayNumber(date) {
+  return Math.floor(
+    Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()) /
+      (24 * 60 * 60 * 1000),
+  );
 }
 
 const STEP_HREF = {
@@ -142,7 +177,78 @@ export default function DashboardPage() {
     trackedWeeks > 0
       ? totalLostLb / trackedWeeks
       : null;
-  const weekMg = weeklyDoseTotalMg(doses);
+  const projectionRemainingLb =
+    Number.isFinite(currentWeightLb) && Number.isFinite(goalWeightLb)
+      ? currentWeightLb - goalWeightLb
+      : null;
+  const projectionWeeksToGoal =
+    Number.isFinite(projectionRemainingLb) &&
+    Number.isFinite(averageWeeklyChange) &&
+    averageWeeklyChange !== 0
+      ? projectionRemainingLb / averageWeeklyChange
+      : null;
+  const projectionGoalDate =
+    Number.isFinite(projectionWeeksToGoal) && projectionWeeksToGoal >= 0
+      ? new Date(Date.now() + projectionWeeksToGoal * 7 * 24 * 60 * 60 * 1000)
+      : null;
+  const projectionNotEnoughData =
+    !Number.isFinite(startingWeightLb) ||
+    !Number.isFinite(currentWeightLb) ||
+    !Number.isFinite(trackedWeeks) ||
+    trackedWeeks <= 0;
+  const projectionPaceLabel =
+    Number.isFinite(goalWeightLb) &&
+    Number.isFinite(averageWeeklyChange) &&
+    averageWeeklyChange !== 0
+      ? `${averageWeeklyChange.toFixed(2)} lb/week`
+      : "\u2014";
+  const currentWeekDose = useMemo(() => {
+    const today = new Date();
+    const todayStart = new Date(today);
+    todayStart.setHours(0, 0, 0, 0);
+    const todayEnd = new Date(today);
+    todayEnd.setHours(23, 59, 59, 999);
+    const validDoseDates = doses
+      .map((dose) => {
+        return parseLocalDateStart(dose?.date);
+      })
+      .filter((date) => date && Number.isFinite(date.getTime()));
+    const anchorStart =
+      validDoseDates.length > 0
+        ? new Date(Math.min(...validDoseDates.map((date) => date.getTime())))
+        : new Date(todayStart);
+    const daysSinceAnchor = localDayNumber(todayStart) - localDayNumber(anchorStart);
+    const cycleIndex = daysSinceAnchor >= 0 ? Math.floor(daysSinceAnchor / 7) : 0;
+    const weekStart = new Date(anchorStart);
+    weekStart.setDate(anchorStart.getDate() + cycleIndex * 7);
+    weekStart.setHours(0, 0, 0, 0);
+    const weekEndForSum = new Date(weekStart);
+    weekEndForSum.setDate(weekEndForSum.getDate() + 6);
+    weekEndForSum.setHours(23, 59, 59, 999);
+    const sumEnd =
+      weekEndForSum.getTime() < todayEnd.getTime()
+        ? weekEndForSum.getTime()
+        : todayEnd.getTime();
+
+    const totalMg = doses.reduce((sum, dose) => {
+      const parsedDoseDate = parseLocalDateStart(dose?.date);
+      const t = parsedDoseDate?.getTime();
+      if (!Number.isFinite(t)) return sum;
+      if (t >= weekStart.getTime() && t <= sumEnd) {
+        return sum + (dose?.mg || 0);
+      }
+      return sum;
+    }, 0);
+
+    const weekEnd = new Date(weekStart);
+    weekEnd.setDate(weekEnd.getDate() + 6);
+
+    return { totalMg, weekStart, weekEnd };
+  }, [doses]);
+  const weekMg = currentWeekDose.totalMg;
+  const weekRangeLabel = `${formatShortMonthDay(
+    currentWeekDose.weekStart,
+  )} \u2013 ${formatShortMonthDay(currentWeekDose.weekEnd)}`;
   const mgPerUnit = getMgPerUnitFromVial(vial);
 
   const dailySorted = useMemo(() => sortByDateDesc(daily), [daily]);
@@ -412,6 +518,41 @@ export default function DashboardPage() {
             </p>
           </Card>
         </div>
+        <Card className="mt-4">
+          <p className="text-xs font-medium uppercase tracking-wide text-zinc-500">
+            Goal Projection Timeline
+          </p>
+          <div className="mt-3 grid gap-3 sm:grid-cols-3">
+            <div>
+              <p className="text-xs font-medium text-zinc-500">Estimated Goal Date</p>
+              <p className="mt-1 text-lg font-semibold text-zinc-900 dark:text-zinc-50">
+                {Number.isFinite(goalWeightLb) && Number.isFinite(averageWeeklyChange) && averageWeeklyChange !== 0
+                  ? formatCalendarDate(projectionGoalDate)
+                  : "\u2014"}
+              </p>
+            </div>
+            <div>
+              <p className="text-xs font-medium text-zinc-500">Weeks Remaining</p>
+              <p className="mt-1 text-lg font-semibold text-zinc-900 dark:text-zinc-50">
+                {Number.isFinite(goalWeightLb) && Number.isFinite(averageWeeklyChange) && averageWeeklyChange !== 0 &&
+                Number.isFinite(projectionWeeksToGoal)
+                  ? Math.round(projectionWeeksToGoal)
+                  : "\u2014"}
+              </p>
+            </div>
+            <div>
+              <p className="text-xs font-medium text-zinc-500">Weekly Pace</p>
+              <p className="mt-1 text-lg font-semibold text-zinc-900 dark:text-zinc-50">
+                {projectionPaceLabel}
+              </p>
+            </div>
+          </div>
+          {projectionNotEnoughData ? (
+            <p className="mt-3 text-xs text-zinc-500 dark:text-zinc-400">
+              Not enough data
+            </p>
+          ) : null}
+        </Card>
       </section>
 
       <Card>
@@ -424,6 +565,9 @@ export default function DashboardPage() {
         </p>
         <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
           {medLabel(vial)} · {mgPerUnit.toFixed(3)} mg per unit
+        </p>
+        <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
+          {weekRangeLabel}
         </p>
       </Card>
 

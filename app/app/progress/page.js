@@ -58,6 +58,9 @@ export default function ProgressPage() {
   const change =
     latest && baseline ? latest.weightLb - baseline.weightLb : 0;
   const message = encouragingMessage(change);
+  const hasWeightInput = form.weightLb.trim() !== "";
+  const hasGoalWeightInput = Number.isFinite(goalWeight) && goalWeight > 0;
+  const canSave = hasWeightInput || hasGoalWeightInput;
 
   function cancelEdit() {
     setEditingId(null);
@@ -92,8 +95,23 @@ export default function ProgressPage() {
 
   function submitEntry(e) {
     e.preventDefault();
-    const w = Number.parseFloat(form.weightLb);
-    if (Number.isNaN(w)) return;
+    const weightInput = form.weightLb.trim();
+    const hasWeightValue = weightInput !== "";
+    const hasGoalWeight = Number.isFinite(goalWeight) && goalWeight > 0;
+    if (!hasWeightValue && !hasGoalWeight) {
+      return;
+    }
+    if (!hasWeightValue) {
+      if (hasGoalWeight) {
+        if (editingId) {
+          setEditingId(null);
+        }
+        setForm(emptyProgressForm());
+      }
+      return;
+    }
+    const w = Number.parseFloat(weightInput);
+    if (Number.isNaN(w) || w <= 0) return;
     const inchesVal = form.inches.trim();
     const row = {
       id: editingId ?? newId(),
@@ -200,7 +218,6 @@ export default function ProgressPage() {
                 Weight (lb)
               </label>
               <input
-                required
                 inputMode="decimal"
                 value={form.weightLb}
                 onChange={(e) =>
@@ -265,7 +282,8 @@ export default function ProgressPage() {
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
             <button
               type="submit"
-              className="w-full rounded-xl bg-teal-600 py-2.5 text-sm font-semibold text-white hover:bg-teal-700 sm:flex-1"
+              disabled={!canSave}
+              className="w-full rounded-xl bg-teal-600 py-2.5 text-sm font-semibold text-white hover:bg-teal-700 disabled:cursor-not-allowed disabled:opacity-50 sm:flex-1"
             >
               {editingId ? "Save changes" : "Save entry (local only)"}
             </button>
