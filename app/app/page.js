@@ -37,6 +37,19 @@ function medLabel(vial) {
   return "Medication";
 }
 
+function formatWeight(value) {
+  return Number.isFinite(value) ? `${value.toFixed(1)} lb` : "\u2014";
+}
+
+function formatDose(lastDose) {
+  if (!lastDose) return "\u2014";
+  const mg = parseNumericAmount(lastDose.mg);
+  if (Number.isFinite(mg) && mg > 0) return `${mg.toFixed(1)} mg`;
+  const units = parseNumericAmount(lastDose.units);
+  if (Number.isFinite(units) && units > 0) return `${units.toFixed(1)} units`;
+  return "\u2014";
+}
+
 const STEP_HREF = {
   1: "/app/onboarding/step-1",
   2: "/app/onboarding/step-2",
@@ -78,6 +91,54 @@ export default function DashboardPage() {
   const lastDose = dosesSorted[0];
   const latestWeight = progressSorted[0];
   const baseline = progressSorted[progressSorted.length - 1];
+  const startingWeightEntry = useMemo(() => {
+    if (progressSorted.length === 0) return null;
+    const oldestFirst = [...progressSorted].reverse();
+    return (
+      oldestFirst.find((entry) =>
+        String(entry?.notes || "")
+          .toLowerCase()
+          .includes("starting weight"),
+      ) || oldestFirst[0]
+    );
+  }, [progressSorted]);
+  const startingWeightLb = parseNumericAmount(startingWeightEntry?.weightLb);
+  const currentWeightLb = parseNumericAmount(latestWeight?.weightLb);
+  const totalLostLb =
+    Number.isFinite(startingWeightLb) && Number.isFinite(currentWeightLb)
+      ? startingWeightLb - currentWeightLb
+      : null;
+  const goalWeightLb = useMemo(() => {
+    const candidates = [
+      vial?.goalWeightLb,
+      vial?.goalWeight,
+      vial?.targetWeightLb,
+      vial?.targetWeight,
+    ];
+    for (const candidate of candidates) {
+      const parsed = parseNumericAmount(candidate);
+      if (Number.isFinite(parsed) && parsed > 0) return parsed;
+    }
+    return null;
+  }, [vial]);
+  const remainingToGoalLb =
+    Number.isFinite(currentWeightLb) && Number.isFinite(goalWeightLb)
+      ? currentWeightLb - goalWeightLb
+      : null;
+  const trackedWeeks = useMemo(() => {
+    const startDate = startingWeightEntry?.date;
+    const currentDate = latestWeight?.date;
+    if (!startDate || !currentDate) return null;
+    const ms = new Date(currentDate).getTime() - new Date(startDate).getTime();
+    if (!Number.isFinite(ms) || ms <= 0) return null;
+    return ms / (1000 * 60 * 60 * 24 * 7);
+  }, [startingWeightEntry, latestWeight]);
+  const averageWeeklyChange =
+    Number.isFinite(totalLostLb) &&
+    Number.isFinite(trackedWeeks) &&
+    trackedWeeks > 0
+      ? totalLostLb / trackedWeeks
+      : null;
   const weekMg = weeklyDoseTotalMg(doses);
   const mgPerUnit = getMgPerUnitFromVial(vial);
 
@@ -291,6 +352,54 @@ export default function DashboardPage() {
           device.
         </p>
       </header>
+
+      <section>
+        <h2 className="text-sm font-semibold text-zinc-900 dark:text-zinc-50">
+          Your Progress Snapshot
+        </h2>
+        <div className="mt-3 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <Card>
+            <p className="text-xs font-medium text-zinc-500">Starting Weight</p>
+            <p className="mt-2 text-lg font-semibold text-zinc-900 dark:text-zinc-50">
+              {formatWeight(startingWeightLb)}
+            </p>
+          </Card>
+          <Card>
+            <p className="text-xs font-medium text-zinc-500">Current Weight</p>
+            <p className="mt-2 text-lg font-semibold text-zinc-900 dark:text-zinc-50">
+              {formatWeight(currentWeightLb)}
+            </p>
+          </Card>
+          <Card>
+            <p className="text-xs font-medium text-zinc-500">Total Lost</p>
+            <p className="mt-2 text-lg font-semibold text-zinc-900 dark:text-zinc-50">
+              {formatWeight(totalLostLb)}
+            </p>
+          </Card>
+          <Card>
+            <p className="text-xs font-medium text-zinc-500">Remaining to Goal</p>
+            <p className="mt-2 text-lg font-semibold text-zinc-900 dark:text-zinc-50">
+              {formatWeight(remainingToGoalLb)}
+            </p>
+          </Card>
+          <Card>
+            <p className="text-xs font-medium text-zinc-500">Current Dose</p>
+            <p className="mt-2 text-lg font-semibold text-zinc-900 dark:text-zinc-50">
+              {formatDose(lastDose)}
+            </p>
+          </Card>
+          <Card>
+            <p className="text-xs font-medium text-zinc-500">
+              Average Weekly Change
+            </p>
+            <p className="mt-2 text-lg font-semibold text-zinc-900 dark:text-zinc-50">
+              {Number.isFinite(averageWeeklyChange)
+                ? `${averageWeeklyChange.toFixed(2)} lb/week`
+                : "\u2014"}
+            </p>
+          </Card>
+        </div>
+      </section>
 
       <Card>
         <p className="text-xs font-medium uppercase tracking-wide text-zinc-500">

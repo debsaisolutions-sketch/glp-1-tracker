@@ -30,19 +30,30 @@ export function AppAccessGuard({ children }) {
           },
         });
 
-        if (!response.ok) {
+        let result = null;
+
+        try {
+          result = await response.json();
+        } catch (jsonError) {
+          console.error("Invalid JSON from /api/check-access:", jsonError);
           if (mounted) setStatus("denied");
           router.replace("/pricing");
           return;
         }
 
-        const result = await response.json();
+        if (!response.ok) {
+          console.error("Access denied:", result);
+          if (mounted) setStatus("denied");
+          router.replace("/pricing");
+          return;
+        }
 
         if (result?.hasAccess) {
           if (mounted) setStatus("allowed");
           return;
         }
 
+        console.error("Access denied:", result);
         if (mounted) setStatus("denied");
         router.replace("/pricing");
       } catch (error) {
@@ -68,7 +79,12 @@ export function AppAccessGuard({ children }) {
   }
 
   if (status !== "allowed") {
-    return null;
+    return (
+      <div style={{ padding: "24px" }}>
+        <h2>Access Denied</h2>
+        <p>Open console for details</p>
+      </div>
+    );
   }
 
   return children;
