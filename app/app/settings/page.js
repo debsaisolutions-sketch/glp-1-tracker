@@ -14,7 +14,13 @@ function btnBase(active) {
 }
 
 export default function SettingsPage() {
-  const { vial, setVial, primaryGoal, setPrimaryGoal, hydrated } = useAppState();
+  const {
+    vial,
+    setVial,
+    primaryGoal,
+    setPrimaryGoal,
+    hydrated,
+  } = useAppState();
 
   function onFieldChange(key, value) {
     setVial((s) => ({ ...s, [key]: value }));

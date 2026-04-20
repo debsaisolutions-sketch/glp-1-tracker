@@ -39,7 +39,14 @@ const btnDelete =
   "touch-manipulation rounded-lg border border-red-200 bg-white px-3 py-2 text-xs font-semibold text-red-700 hover:bg-red-50 active:bg-red-100 dark:border-red-900/60 dark:bg-zinc-900 dark:text-red-400 dark:hover:bg-red-950/40";
 
 export default function ProgressPage() {
-  const { progress: entries, addProgress, setProgress, hydrated } = useAppState();
+  const {
+    progress: entries,
+    addProgress,
+    setProgress,
+    goalWeight,
+    setGoalWeight,
+    hydrated,
+  } = useAppState();
   const [editingId, setEditingId] = useState(null);
   const [form, setForm] = useState(emptyProgressForm);
 
@@ -199,6 +206,21 @@ export default function ProgressPage() {
                 onChange={(e) =>
                   setForm((f) => ({ ...f, weightLb: e.target.value }))
                 }
+                className="mt-1 w-full rounded-xl border border-zinc-200 bg-white px-3 py-2.5 text-sm dark:border-zinc-700 dark:bg-zinc-950"
+              />
+            </div>
+            <div>
+              <label className="text-xs font-medium text-zinc-600 dark:text-zinc-400">
+                Goal Weight (lb)
+              </label>
+              <input
+                type="number"
+                inputMode="decimal"
+                step="0.1"
+                min="0"
+                value={goalWeight == null ? "" : String(goalWeight)}
+                onChange={(e) => setGoalWeight(e.target.value)}
+                placeholder="e.g. 165"
                 className="mt-1 w-full rounded-xl border border-zinc-200 bg-white px-3 py-2.5 text-sm dark:border-zinc-700 dark:bg-zinc-950"
               />
             </div>

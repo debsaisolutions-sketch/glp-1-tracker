@@ -53,6 +53,12 @@ function normalizePrimaryGoal(raw) {
   return PRIMARY_GOAL_IDS.has(s) ? s : null;
 }
 
+function normalizeGoalWeight(raw) {
+  if (raw == null || raw === "") return null;
+  const value = parseNumericAmount(raw);
+  return Number.isFinite(value) && value > 0 ? value : null;
+}
+
 function mergeShakeNutritionPrefs(raw) {
   const base = { ...EMPTY_SHAKE_NUTRITION_PREFS };
   if (!raw || typeof raw !== "object") return base;
@@ -106,6 +112,7 @@ function buildDefaultSnapshot() {
     daily: [],
     shakeNutritionPrefs: { ...EMPTY_SHAKE_NUTRITION_PREFS },
     primaryGoal: null,
+    goalWeight: null,
     onboardingComplete: false,
   };
 }
@@ -122,6 +129,7 @@ function buildLocalSnapshot() {
     daily: ensureEntryIds(saved.daily, "l"),
     shakeNutritionPrefs: mergeShakeNutritionPrefs(saved.shakeNutritionPrefs),
     primaryGoal: normalizePrimaryGoal(saved.primaryGoal),
+    goalWeight: normalizeGoalWeight(saved.goalWeight ?? saved.goalWeightLb),
     onboardingComplete: !!saved.onboardingComplete,
   };
 }
@@ -176,7 +184,7 @@ async function loadSupabaseSnapshot(userId) {
   ] = await Promise.all([
     supabase
       .from("profiles")
-      .select("primary_goal,onboarding_complete")
+      .select("*")
       .eq("user_id", userId)
       .maybeSingle(),
     supabase
@@ -252,6 +260,7 @@ async function loadSupabaseSnapshot(userId) {
         : null,
     ),
     primaryGoal: normalizePrimaryGoal(profileResult.data?.primary_goal),
+    goalWeight: normalizeGoalWeight(profileResult.data?.goal_weight_lb),
     onboardingComplete: !!profileResult.data?.onboarding_complete,
   };
 }
@@ -278,6 +287,7 @@ async function syncSnapshotToSupabase(userId, snapshot) {
     {
       user_id: userId,
       primary_goal: snapshot.primaryGoal,
+      goal_weight_lb: snapshot.goalWeight,
       onboarding_complete: !!snapshot.onboardingComplete,
     },
     { onConflict: "user_id" },
@@ -375,6 +385,7 @@ export function AppStateProvider({ children }) {
     ...EMPTY_SHAKE_NUTRITION_PREFS,
   }));
   const [primaryGoal, setPrimaryGoalState] = useState(null);
+  const [goalWeight, setGoalWeightState] = useState(null);
   const [onboardingComplete, setOnboardingCompleteState] = useState(false);
   const [storageMode, setStorageMode] = useState("local");
   const [activeUserId, setActiveUserId] = useState(null);
@@ -390,6 +401,7 @@ export function AppStateProvider({ children }) {
       mergeShakeNutritionPrefs(snapshot.shakeNutritionPrefs),
     );
     setPrimaryGoalState(normalizePrimaryGoal(snapshot.primaryGoal));
+    setGoalWeightState(normalizeGoalWeight(snapshot.goalWeight));
     setOnboardingCompleteState(!!snapshot.onboardingComplete);
   }, []);
 
@@ -489,6 +501,7 @@ export function AppStateProvider({ children }) {
       daily,
       shakeNutritionPrefs,
       primaryGoal,
+      goalWeight,
       onboardingComplete,
     };
     writeStorage(snapshot);
@@ -525,6 +538,7 @@ export function AppStateProvider({ children }) {
     daily,
     shakeNutritionPrefs,
     primaryGoal,
+    goalWeight,
     onboardingComplete,
   ]);
 
@@ -577,6 +591,13 @@ export function AppStateProvider({ children }) {
     });
   }, []);
 
+  const setGoalWeight = useCallback((next) => {
+    setGoalWeightState((g) => {
+      if (typeof next === "function") return normalizeGoalWeight(next(g));
+      return normalizeGoalWeight(next);
+    });
+  }, []);
+
   const completeOnboarding = useCallback(() => {
     setOnboardingCompleteState(true);
   }, []);
@@ -603,6 +624,8 @@ export function AppStateProvider({ children }) {
       setShakeNutritionPrefs,
       primaryGoal,
       setPrimaryGoal,
+      goalWeight,
+      setGoalWeight,
       onboardingComplete,
       completeOnboarding,
       skipOnboarding,
@@ -624,6 +647,8 @@ export function AppStateProvider({ children }) {
       setShakeNutritionPrefs,
       primaryGoal,
       setPrimaryGoal,
+      goalWeight,
+      setGoalWeight,
       onboardingComplete,
       completeOnboarding,
       skipOnboarding,

@@ -50,6 +50,18 @@ function formatDose(lastDose) {
   return "\u2014";
 }
 
+function formatEntryDate(entry) {
+  const raw = entry?.created_at || entry?.createdAt || entry?.date;
+  if (!raw) return null;
+  const parsed = new Date(raw);
+  if (!Number.isFinite(parsed.getTime())) return null;
+  return new Intl.DateTimeFormat("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  }).format(parsed);
+}
+
 const STEP_HREF = {
   1: "/app/onboarding/step-1",
   2: "/app/onboarding/step-2",
@@ -67,6 +79,7 @@ export default function DashboardPage() {
     shakeNutritionPrefs,
     setShakeNutritionPrefs,
     primaryGoal,
+    goalWeight,
     onboardingComplete,
     skipOnboarding,
     hydrated,
@@ -104,23 +117,13 @@ export default function DashboardPage() {
   }, [progressSorted]);
   const startingWeightLb = parseNumericAmount(startingWeightEntry?.weightLb);
   const currentWeightLb = parseNumericAmount(latestWeight?.weightLb);
+  const startingWeightDateLabel = formatEntryDate(startingWeightEntry);
+  const currentWeightDateLabel = formatEntryDate(latestWeight);
   const totalLostLb =
     Number.isFinite(startingWeightLb) && Number.isFinite(currentWeightLb)
       ? startingWeightLb - currentWeightLb
       : null;
-  const goalWeightLb = useMemo(() => {
-    const candidates = [
-      vial?.goalWeightLb,
-      vial?.goalWeight,
-      vial?.targetWeightLb,
-      vial?.targetWeight,
-    ];
-    for (const candidate of candidates) {
-      const parsed = parseNumericAmount(candidate);
-      if (Number.isFinite(parsed) && parsed > 0) return parsed;
-    }
-    return null;
-  }, [vial]);
+  const goalWeightLb = Number.isFinite(goalWeight) && goalWeight > 0 ? goalWeight : null;
   const remainingToGoalLb =
     Number.isFinite(currentWeightLb) && Number.isFinite(goalWeightLb)
       ? currentWeightLb - goalWeightLb
@@ -363,12 +366,22 @@ export default function DashboardPage() {
             <p className="mt-2 text-lg font-semibold text-zinc-900 dark:text-zinc-50">
               {formatWeight(startingWeightLb)}
             </p>
+            {startingWeightDateLabel ? (
+              <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
+                {startingWeightDateLabel}
+              </p>
+            ) : null}
           </Card>
           <Card>
             <p className="text-xs font-medium text-zinc-500">Current Weight</p>
             <p className="mt-2 text-lg font-semibold text-zinc-900 dark:text-zinc-50">
               {formatWeight(currentWeightLb)}
             </p>
+            {currentWeightDateLabel ? (
+              <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
+                {currentWeightDateLabel}
+              </p>
+            ) : null}
           </Card>
           <Card>
             <p className="text-xs font-medium text-zinc-500">Total Lost</p>
