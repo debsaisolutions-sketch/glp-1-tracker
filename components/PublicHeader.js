@@ -6,9 +6,16 @@ export function PublicHeader() {
       <div className="mx-auto flex max-w-lg items-center justify-between px-4 py-3 sm:max-w-4xl">
         <Link
           href="/"
-          className="text-sm font-semibold tracking-tight text-teal-800 dark:text-teal-200"
+          className="inline-flex items-center gap-2 text-sm font-semibold tracking-tight text-teal-800 dark:text-teal-200"
         >
-          PeptidePath
+          <img
+            src="/peptidepath-icon.png"
+            alt="PeptidePath logo"
+            width={28}
+            height={28}
+            className="h-7 w-7 rounded-md object-cover"
+          />
+          <span>PeptidePath</span>
         </Link>
         <nav className="flex items-center gap-3 text-sm">
           <Link
