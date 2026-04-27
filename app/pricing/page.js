@@ -4,7 +4,7 @@ import { StartTrialButton } from "@/components/StartTrialButton";
 
 const tiers = [
   {
-    name: "RealHealthPath",
+    name: "PeptidePath",
     price: "$9",
     period: "/mo",
     blurb: "Start your 7-day free trial",

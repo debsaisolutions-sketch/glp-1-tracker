@@ -8,7 +8,7 @@ export function PublicHeader() {
           href="/"
           className="text-sm font-semibold tracking-tight text-teal-800 dark:text-teal-200"
         >
-          RealHealthPath
+          PeptidePath
         </Link>
         <nav className="flex items-center gap-3 text-sm">
           <Link
@@ -21,13 +21,13 @@ export function PublicHeader() {
             href="/login"
             className="text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100"
           >
-            Log in (preview)
+            Sign in
           </Link>
           <Link
             href="/app"
             className="rounded-full bg-teal-600 px-3 py-1.5 font-medium text-white shadow-sm hover:bg-teal-700"
           >
-            Preview App
+            Get started
           </Link>
         </nav>
       </div>

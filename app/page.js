@@ -10,13 +10,13 @@ export default function LandingPage() {
       <main className="mx-auto flex w-full max-w-lg flex-1 flex-col gap-8 px-4 py-10 sm:max-w-4xl sm:py-14">
         <section className="space-y-4 text-center sm:text-left">
           <p className="text-sm font-medium uppercase tracking-wide text-teal-700 dark:text-teal-300">
-            RealHealthPath
+            PeptidePath
           </p>
           <p className="text-sm text-zinc-600 dark:text-zinc-400">
             Understand your body. Not just your dose.
           </p>
           <h1 className="text-balance text-3xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-50 sm:text-4xl">
-            A calmer way to track your health journey
+            A better way to track your peptide journey
           </h1>
           <p className="text-pretty text-lg leading-relaxed text-zinc-600 dark:text-zinc-400">
             Log doses with automatic mg math, capture daily notes, and watch
@@ -82,13 +82,13 @@ export default function LandingPage() {
               href="/app"
               className="text-sm font-semibold text-teal-900 underline-offset-4 hover:underline dark:text-teal-100"
             >
-              Open the app preview →
+              Get started →
             </Link>
           </div>
         </section>
       </main>
       <footer className="border-t border-zinc-200/80 py-6 text-center text-xs text-zinc-500 dark:border-zinc-800">
-        RealHealthPath · Educational mockup · Not medical advice
+        PeptidePath · Educational tools for tracking your peptide journey.
       </footer>
     </div>
   );

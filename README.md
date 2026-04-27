@@ -1,4 +1,4 @@
-This is the RealHealthPath web app built with [Next.js](https://nextjs.org).
+This is the PeptidePath web app built with [Next.js](https://nextjs.org).
 
 ## Getting Started
 
