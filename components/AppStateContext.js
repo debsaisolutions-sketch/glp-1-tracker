@@ -177,10 +177,70 @@ function mapProgressFromDb(row) {
 }
 
 function mapDailyFromDb(row) {
+  const normalizeFoodItem = (item, index) => ({
+    id:
+      item && typeof item === "object" && item.id
+        ? String(item.id)
+        : `fi-${index}-${Math.random().toString(36).slice(2, 8)}`,
+    foodType: item?.foodType || item?.food_type || "",
+    amount: item?.amount || "",
+    foodNotes: item?.foodNotes || item?.food_notes || "",
+    estimatedProtein: parseNumericAmount(
+      item?.estimatedProtein ?? item?.estimated_protein,
+    ) || 0,
+    estimatedCarbs: parseNumericAmount(item?.estimatedCarbs ?? item?.estimated_carbs) || 0,
+    estimatedFat: parseNumericAmount(item?.estimatedFat ?? item?.estimated_fat) || 0,
+    estimatedCalories:
+      parseNumericAmount(item?.estimatedCalories ?? item?.estimated_calories) || 0,
+    proteinGrams: parseNumericAmount(item?.proteinGrams ?? item?.protein_grams) || 0,
+  });
+
+  const hasLegacyFood =
+    (row.food_type && String(row.food_type).trim() !== "") ||
+    (row.amount && String(row.amount).trim() !== "") ||
+    (row.food_notes && String(row.food_notes).trim() !== "") ||
+    (parseNumericAmount(row.estimated_protein) || 0) > 0 ||
+    (parseNumericAmount(row.estimated_carbs) || 0) > 0 ||
+    (parseNumericAmount(row.estimated_fat) || 0) > 0 ||
+    (parseNumericAmount(row.estimated_calories) || 0) > 0 ||
+    (parseNumericAmount(row.protein_grams) || 0) > 0;
+
+  const fromJsonb = Array.isArray(row.food_items)
+    ? row.food_items.map(normalizeFoodItem).filter(Boolean)
+    : [];
+  const foodItems =
+    fromJsonb.length > 0
+      ? fromJsonb
+      : hasLegacyFood
+        ? [
+            normalizeFoodItem(
+              {
+                id: `${row.entry_id}-legacy`,
+                foodType: row.food_type,
+                amount: row.amount,
+                foodNotes: row.food_notes,
+                estimatedProtein: row.estimated_protein,
+                estimatedCarbs: row.estimated_carbs,
+                estimatedFat: row.estimated_fat,
+                estimatedCalories: row.estimated_calories,
+                proteinGrams: row.protein_grams,
+              },
+              0,
+            ),
+          ]
+        : [];
+
   return {
     id: row.entry_id,
     date: row.date,
+    foodItems,
     foodNotes: row.food_notes || "",
+    foodType: row.food_type || "",
+    amount: row.amount || "",
+    estimatedProtein: parseNumericAmount(row.estimated_protein) || 0,
+    estimatedCarbs: parseNumericAmount(row.estimated_carbs) || 0,
+    estimatedFat: parseNumericAmount(row.estimated_fat) || 0,
+    estimatedCalories: parseNumericAmount(row.estimated_calories) || 0,
     proteinGrams: parseNumericAmount(row.protein_grams) || 0,
     waterOz: parseNumericAmount(row.water_oz) || 0,
     feeling: row.feeling || "",
@@ -229,7 +289,7 @@ async function loadSupabaseSnapshot(userId) {
     supabase
       .from("daily_logs")
       .select(
-        "entry_id,date,food_notes,protein_grams,water_oz,feeling,notes,created_at",
+        "entry_id,date,food_items,food_notes,food_type,amount,estimated_protein,estimated_carbs,estimated_fat,estimated_calories,protein_grams,water_oz,feeling,notes,created_at",
       )
       .eq("user_id", userId),
   ]);
@@ -389,16 +449,49 @@ async function syncSnapshotToSupabase(userId, snapshot) {
   await replaceUserRows(
     "daily_logs",
     userId,
-    snapshot.daily.map((row) => ({
-      user_id: userId,
-      entry_id: row.id,
-      date: row.date,
-      food_notes: row.foodNotes || "",
-      protein_grams: parseNumericAmount(row.proteinGrams) || 0,
-      water_oz: parseNumericAmount(row.waterOz) || 0,
-      feeling: row.feeling || "",
-      notes: row.notes || "",
-    })),
+    snapshot.daily.map((row) => {
+      const safeFoodItems = Array.isArray(row.foodItems)
+        ? row.foodItems.map((item, index) => ({
+            id:
+              item && typeof item === "object" && item.id
+                ? String(item.id)
+                : `fi-${index}-${Math.random().toString(36).slice(2, 8)}`,
+            foodType: item?.foodType || "",
+            amount: item?.amount || "",
+            foodNotes: item?.foodNotes || "",
+            estimatedProtein: parseNumericAmount(item?.estimatedProtein) || 0,
+            estimatedCarbs: parseNumericAmount(item?.estimatedCarbs) || 0,
+            estimatedFat: parseNumericAmount(item?.estimatedFat) || 0,
+            estimatedCalories: parseNumericAmount(item?.estimatedCalories) || 0,
+            proteinGrams: parseNumericAmount(item?.proteinGrams) || 0,
+          }))
+        : [];
+      const primaryLegacy = safeFoodItems[0] || {};
+
+      return {
+        user_id: userId,
+        entry_id: row.id,
+        date: row.date,
+        food_items: safeFoodItems,
+        // Keep legacy scalar columns populated for backward compatibility.
+        food_notes: primaryLegacy.foodNotes || row.foodNotes || "",
+        food_type: primaryLegacy.foodType || row.foodType || "",
+        amount: primaryLegacy.amount || row.amount || "",
+        estimated_protein:
+          parseNumericAmount(primaryLegacy.estimatedProtein ?? row.estimatedProtein) || 0,
+        estimated_carbs:
+          parseNumericAmount(primaryLegacy.estimatedCarbs ?? row.estimatedCarbs) || 0,
+        estimated_fat:
+          parseNumericAmount(primaryLegacy.estimatedFat ?? row.estimatedFat) || 0,
+        estimated_calories:
+          parseNumericAmount(primaryLegacy.estimatedCalories ?? row.estimatedCalories) || 0,
+        protein_grams:
+          parseNumericAmount(primaryLegacy.proteinGrams ?? row.proteinGrams) || 0,
+        water_oz: parseNumericAmount(row.waterOz) || 0,
+        feeling: row.feeling || "",
+        notes: row.notes || "",
+      };
+    }),
   );
 }
 
