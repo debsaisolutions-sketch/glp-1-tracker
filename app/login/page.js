@@ -52,7 +52,7 @@ function LoginPageContent() {
             Welcome back
           </h1>
           <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
-            Enter your email and we&apos;ll send you a secure login link.
+            Sign in with your email and password.
           </p>
           <LoginForm />
           <p className="mt-4 text-center text-sm text-zinc-600 dark:text-zinc-400">

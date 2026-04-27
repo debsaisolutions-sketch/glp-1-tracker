@@ -10,7 +10,7 @@ export default function LandingPage() {
       <main className="mx-auto flex w-full max-w-lg flex-1 flex-col gap-8 px-4 py-10 sm:max-w-4xl sm:py-14">
         <section className="space-y-4 text-center sm:text-left">
           <p className="text-sm font-medium uppercase tracking-wide text-teal-700 dark:text-teal-300">
-            PeptidePath
+            SMART PEPTIDE TRACKING
           </p>
           <p className="text-sm text-zinc-600 dark:text-zinc-400">
             Understand your body. Not just your dose.

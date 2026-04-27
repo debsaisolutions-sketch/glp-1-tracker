@@ -1,25 +1,22 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { PublicHeader } from "@/components/PublicHeader";
 import { Card } from "@/components/Card";
 import { supabase } from "@/lib/supabaseClient";
 
-export default function SignupPage() {
-  const router = useRouter();
-  const [email, setEmail] = useState("");
+export default function ResetPasswordPage() {
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [submitMessage, setSubmitMessage] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
+  const [successMessage, setSuccessMessage] = useState("");
 
-  async function onSubmit(e) {
-    e.preventDefault();
-    setSubmitMessage("");
+  async function onSubmit(event) {
+    event.preventDefault();
     setErrorMessage("");
+    setSuccessMessage("");
 
     if (!supabase) {
       setErrorMessage(
@@ -28,36 +25,28 @@ export default function SignupPage() {
       return;
     }
 
-    if (password !== confirmPassword) {
-      setErrorMessage("Passwords do not match.");
-      return;
-    }
-
     if (password.length < 6) {
       setErrorMessage("Password must be at least 6 characters.");
       return;
     }
 
+    if (password !== confirmPassword) {
+      setErrorMessage("Passwords do not match.");
+      return;
+    }
+
     setIsSubmitting(true);
-
-    const { data, error } = await supabase.auth.signUp({
-      email: email.trim(),
-      password,
-    });
-
+    const { error } = await supabase.auth.updateUser({ password });
     setIsSubmitting(false);
 
     if (error) {
-      setErrorMessage(error.message || "Unable to create account.");
+      setErrorMessage(error.message || "Unable to update password.");
       return;
     }
 
-    if (data?.session?.user) {
-      router.replace("/app");
-      return;
-    }
-
-    setSubmitMessage("Account created. Check your email to confirm your account.");
+    setSuccessMessage("Password updated. You can sign in now.");
+    setPassword("");
+    setConfirmPassword("");
   }
 
   return (
@@ -66,40 +55,23 @@ export default function SignupPage() {
       <main className="mx-auto w-full max-w-lg px-4 py-10">
         <Card className="mx-auto max-w-md">
           <h1 className="text-xl font-semibold text-zinc-900 dark:text-zinc-50">
-            Create your account
+            Reset password
           </h1>
           <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
-            Use your email and password to get started.
+            Enter your new password below.
           </p>
+
           <form className="mt-6 space-y-4" onSubmit={onSubmit}>
             <div>
               <label
-                htmlFor="email"
+                htmlFor="new-password"
                 className="text-xs font-medium text-zinc-600 dark:text-zinc-400"
               >
-                Email
+                New password
               </label>
               <input
-                id="email"
-                name="email"
-                type="email"
-                autoComplete="email"
-                required
-                value={email}
-                onChange={(event) => setEmail(event.target.value)}
-                className="mt-1 w-full rounded-xl border border-zinc-200 bg-white px-3 py-2.5 text-sm outline-none ring-teal-500/30 focus:ring-2 dark:border-zinc-700 dark:bg-zinc-950"
-              />
-            </div>
-            <div>
-              <label
-                htmlFor="password"
-                className="text-xs font-medium text-zinc-600 dark:text-zinc-400"
-              >
-                Password
-              </label>
-              <input
-                id="password"
-                name="password"
+                id="new-password"
+                name="new-password"
                 type="password"
                 autoComplete="new-password"
                 required
@@ -108,6 +80,7 @@ export default function SignupPage() {
                 className="mt-1 w-full rounded-xl border border-zinc-200 bg-white px-3 py-2.5 text-sm outline-none ring-teal-500/30 focus:ring-2 dark:border-zinc-700 dark:bg-zinc-950"
               />
             </div>
+
             <div>
               <label
                 htmlFor="confirm-password"
@@ -126,14 +99,16 @@ export default function SignupPage() {
                 className="mt-1 w-full rounded-xl border border-zinc-200 bg-white px-3 py-2.5 text-sm outline-none ring-teal-500/30 focus:ring-2 dark:border-zinc-700 dark:bg-zinc-950"
               />
             </div>
+
             <button
               type="submit"
               disabled={isSubmitting}
-              className="w-full rounded-xl border border-zinc-200 bg-zinc-100 py-2.5 text-sm font-semibold text-zinc-700 hover:bg-zinc-200 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-200 dark:hover:bg-zinc-700"
+              className="w-full rounded-xl border border-zinc-200 bg-zinc-100 py-2.5 text-sm font-semibold text-zinc-700 hover:bg-zinc-200 disabled:cursor-not-allowed disabled:opacity-70 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-200 dark:hover:bg-zinc-700"
             >
-              {isSubmitting ? "Creating account..." : "Create account"}
+              {isSubmitting ? "Updating..." : "Update password"}
             </button>
           </form>
+
           {errorMessage ? (
             <p
               className="mt-4 rounded-xl border border-rose-200 bg-rose-50/80 px-3 py-2.5 text-sm leading-relaxed text-rose-900 dark:border-rose-900/70 dark:bg-rose-950/40 dark:text-rose-100"
@@ -142,14 +117,16 @@ export default function SignupPage() {
               {errorMessage}
             </p>
           ) : null}
-          {submitMessage ? (
+
+          {successMessage ? (
             <p
               className="mt-4 rounded-xl border border-teal-200 bg-teal-50/80 px-3 py-2.5 text-sm leading-relaxed text-teal-950 dark:border-teal-900/60 dark:bg-teal-950/40 dark:text-teal-100"
               role="status"
             >
-              {submitMessage}
+              {successMessage}
             </p>
           ) : null}
+
           <p className="mt-4 text-center text-sm text-zinc-600 dark:text-zinc-400">
             <Link
               href="/login"

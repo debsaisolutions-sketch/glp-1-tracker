@@ -5,10 +5,10 @@ import { usePathname } from "next/navigation";
 
 const nav = [
   { href: "/app", label: "Home" },
-  { href: "/app/doses", label: "Log Dose" },
   { href: "/app/daily", label: "Daily Log" },
   { href: "/app/progress", label: "Weight Progress" },
-  { href: "/app/settings", label: "Medication Setup" },
+  { href: "/app/doses", label: "Dose" },
+  { href: "/app/settings", label: "Settings" },
 ];
 
 export function AppShell({ children }) {
