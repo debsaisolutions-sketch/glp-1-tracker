@@ -11,6 +11,7 @@ import {
 } from "@/lib/constants";
 import {
   getMgPerUnitFromVial,
+  parseLocalDateOnly,
   parseNumericAmount,
   unitsToMg,
   weeklyDoseTotalMg,
@@ -36,6 +37,12 @@ function formatDoseTime(timeText) {
   const suffix = hour24 >= 12 ? "PM" : "AM";
   const hour12 = hour24 % 12 === 0 ? 12 : hour24 % 12;
   return `${hour12}:${minute} ${suffix}`;
+}
+
+function formatDoseWeekday(dateText) {
+  const d = parseLocalDateOnly(dateText);
+  if (Number.isNaN(d.getTime())) return "";
+  return d.toLocaleDateString(undefined, { weekday: "short" });
 }
 
 function emptyDoseForm() {
@@ -345,6 +352,7 @@ export default function DosesPage() {
                   {d.mg} mg · {d.units} units
                 </p>
                 <p className="text-xs text-zinc-500">
+                  {formatDoseWeekday(d.date) ? `${formatDoseWeekday(d.date)} · ` : ""}
                   {d.date}
                   {formatDoseTime(d.doseTime)
                     ? ` · ${formatDoseTime(d.doseTime)}`
