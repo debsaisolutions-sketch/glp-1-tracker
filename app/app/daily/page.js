@@ -68,6 +68,24 @@ function parseAmountParts(amountText) {
   return { amountValue: "", amountUnit: "oz", amountRaw: raw };
 }
 
+function squeezeSpaces(s) {
+  return String(s || "")
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, " ");
+}
+
+function recentFoodDedupeKey(foodType, amount) {
+  return `${squeezeSpaces(foodType)}|${squeezeSpaces(amount)}`;
+}
+
+function recentFoodChipLabel(item) {
+  const type = String(item?.foodType || "").trim() || "Food";
+  const amt = String(item?.amount || "").trim();
+  const line = amt ? `${type} — ${amt}` : type;
+  return line.length > 52 ? `${line.slice(0, 49)}…` : line;
+}
+
 const btnDelete =
   "touch-manipulation rounded-lg border border-red-200 bg-white px-3 py-2 text-xs font-semibold text-red-700 hover:bg-red-50 active:bg-red-100 dark:border-red-900/60 dark:bg-zinc-900 dark:text-red-400 dark:hover:bg-red-950/40";
 const btnEdit =
@@ -87,6 +105,7 @@ export default function DailyPage() {
   const [foodFormError, setFoodFormError] = useState("");
   const [foodEstimateMessage, setFoodEstimateMessage] = useState("");
   const [saveStatus, setSaveStatus] = useState("");
+  const [hideFoodSuggestions, setHideFoodSuggestions] = useState(false);
 
   function normalizeFoodItem(raw, idx = 0) {
     return {
@@ -133,6 +152,54 @@ export default function DailyPage() {
     () => sortByDateDesc(logs.filter((log) => log.date === selectedDate)),
     [logs, selectedDate],
   );
+
+  const recentFoodTemplates = useMemo(() => {
+    const sorted = sortByDateDesc(logs);
+    const seen = new Set();
+    const out = [];
+
+    function itemsForRow(row) {
+      if (Array.isArray(row.foodItems) && row.foodItems.length > 0) {
+        return row.foodItems;
+      }
+      const legacy = {
+        foodType: row.foodType,
+        amount: row.amount,
+        foodNotes: row.foodNotes,
+        estimatedProtein: row.estimatedProtein,
+        estimatedCarbs: row.estimatedCarbs,
+        estimatedFat: row.estimatedFat,
+        estimatedCalories: row.estimatedCalories,
+        proteinGrams: row.proteinGrams,
+      };
+      const normalized = normalizeFoodItem(legacy, 0);
+      return hasFoodFields(normalized) ? [legacy] : [];
+    }
+
+    for (const row of sorted) {
+      for (const raw of itemsForRow(row)) {
+        const n = normalizeFoodItem(raw, 0);
+        if (!hasFoodFields(n)) continue;
+        const key = recentFoodDedupeKey(n.foodType, n.amount);
+        if (seen.has(key)) continue;
+        seen.add(key);
+        out.push(n);
+        if (out.length >= 8) return out;
+      }
+    }
+
+    for (const raw of selectedFoodItems) {
+      const n = normalizeFoodItem(raw, 0);
+      if (!hasFoodFields(n)) continue;
+      const key = recentFoodDedupeKey(n.foodType, n.amount);
+      if (seen.has(key)) continue;
+      seen.add(key);
+      out.push(n);
+      if (out.length >= 8) return out;
+    }
+
+    return out;
+  }, [logs, selectedFoodItems]);
 
   useEffect(() => {
     const mergedItems = selectedDateRows.flatMap((row, rowIndex) => {
@@ -243,6 +310,39 @@ export default function DailyPage() {
     setFoodDraft(emptyFoodDraft());
   }
 
+  function applyRecentFoodTemplate(item) {
+    setSaveStatus("");
+    setFoodFormError("");
+    setFoodEstimateMessage("");
+    setEditingFoodItemId(null);
+    setHideFoodSuggestions(true);
+    setFoodDraft({
+      foodType: item.foodType || "",
+      ...parseAmountParts(item.amount),
+      foodNotes: item.foodNotes || "",
+      estimatedProtein:
+        item.estimatedProtein != null && item.estimatedProtein !== ""
+          ? String(item.estimatedProtein)
+          : "",
+      estimatedCarbs:
+        item.estimatedCarbs != null && item.estimatedCarbs !== ""
+          ? String(item.estimatedCarbs)
+          : "",
+      estimatedFat:
+        item.estimatedFat != null && item.estimatedFat !== ""
+          ? String(item.estimatedFat)
+          : "",
+      estimatedCalories:
+        item.estimatedCalories != null && item.estimatedCalories !== ""
+          ? String(item.estimatedCalories)
+          : "",
+      proteinGrams:
+        item.proteinGrams != null && item.proteinGrams !== ""
+          ? String(item.proteinGrams)
+          : "",
+    });
+  }
+
   function onEstimateMacros() {
     setFoodFormError("");
     setSaveStatus("");
@@ -307,6 +407,31 @@ export default function DailyPage() {
 
   const sorted = sortByDateDesc(logs);
   const nonSelectedLogs = sorted.filter((log) => log.date !== selectedDate);
+  const visibleRecentFoods = useMemo(() => {
+    const source =
+      recentFoodTemplates.length > 0
+        ? recentFoodTemplates
+        : selectedFoodItems.slice(0, 8);
+    const seen = new Set();
+    const out = [];
+    for (const raw of source) {
+      const n = normalizeFoodItem(raw, 0);
+      if (!hasFoodFields(n)) continue;
+      const key = recentFoodDedupeKey(n.foodType, n.amount);
+      if (seen.has(key)) continue;
+      seen.add(key);
+      out.push(n);
+      if (out.length >= 8) break;
+    }
+    return out;
+  }, [recentFoodTemplates, selectedFoodItems]);
+  const foodTypeSuggestions = useMemo(() => {
+    const query = String(foodDraft.foodType || "").trim().toLowerCase();
+    if (hideFoodSuggestions || query.length < 2) return [];
+    return visibleRecentFoods
+      .filter((item) => String(item.foodType || "").toLowerCase().includes(query))
+      .slice(0, 5);
+  }, [foodDraft.foodType, hideFoodSuggestions, visibleRecentFoods]);
   const waterToday = Math.max(0, Number.parseFloat(waterOz) || 0);
   const selectedTotals = selectedFoodItems.reduce(
     (totals, item) => ({
@@ -430,6 +555,7 @@ export default function DailyPage() {
                 value={foodDraft.foodType}
                 onChange={(e) =>
                   setFoodDraft((f) => {
+                    setHideFoodSuggestions(false);
                     setSaveStatus("");
                     setFoodEstimateMessage("");
                     return { ...f, foodType: e.target.value };
@@ -438,6 +564,20 @@ export default function DailyPage() {
                 placeholder="e.g. Chicken breast"
                 className="mt-1 w-full rounded-xl border border-zinc-200 bg-white px-3 py-2.5 text-sm dark:border-zinc-700 dark:bg-zinc-950"
               />
+              {foodTypeSuggestions.length > 0 ? (
+                <div className="mt-2 space-y-1">
+                  {foodTypeSuggestions.map((item) => (
+                    <button
+                      key={recentFoodDedupeKey(item.foodType, item.amount)}
+                      type="button"
+                      onClick={() => applyRecentFoodTemplate(item)}
+                      className="block w-full rounded-lg border border-zinc-200 bg-zinc-50 px-2.5 py-2 text-left text-xs font-medium text-zinc-800 hover:bg-zinc-100 dark:border-zinc-600 dark:bg-zinc-900 dark:text-zinc-100 dark:hover:bg-zinc-800"
+                    >
+                      {recentFoodChipLabel(item)}
+                    </button>
+                  ))}
+                </div>
+              ) : null}
             </div>
             <div>
               <label className="text-xs font-medium text-zinc-600 dark:text-zinc-400">
