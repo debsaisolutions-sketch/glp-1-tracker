@@ -24,13 +24,30 @@ function sortByDateDesc(items) {
 }
 
 function emptyProgressForm() {
+  const now = new Date();
+  const localTime = `${String(now.getHours()).padStart(2, "0")}:${String(
+    now.getMinutes(),
+  ).padStart(2, "0")}`;
   return {
-    date: new Date().toISOString().slice(0, 10),
+    date: now.toISOString().slice(0, 10),
+    weightTime: localTime,
     weightLb: "",
     inches: "",
     feeling: FEELING_EMOJIS[1],
     notes: "",
   };
+}
+
+function formatWeightTime(timeText) {
+  const raw = String(timeText || "").trim();
+  const match = raw.match(/^(\d{1,2}):(\d{2})$/);
+  if (!match) return "";
+  const hour24 = Number.parseInt(match[1], 10);
+  const minute = match[2];
+  if (!Number.isFinite(hour24) || hour24 < 0 || hour24 > 23) return "";
+  const suffix = hour24 >= 12 ? "PM" : "AM";
+  const hour12 = hour24 % 12 === 0 ? 12 : hour24 % 12;
+  return `${hour12}:${minute} ${suffix}`;
 }
 
 const btnEdit =
@@ -71,6 +88,7 @@ export default function ProgressPage() {
     setEditingId(p.id);
     setForm({
       date: p.date,
+      weightTime: p.weightTime || "",
       weightLb: String(p.weightLb),
       inches:
         typeof p.inches === "number" && !Number.isNaN(p.inches)
@@ -113,9 +131,13 @@ export default function ProgressPage() {
     const w = Number.parseFloat(weightInput);
     if (Number.isNaN(w) || w <= 0) return;
     const inchesVal = form.inches.trim();
+    const timezone =
+      Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
     const row = {
       id: editingId ?? newId(),
       date: form.date,
+      weightTime: String(form.weightTime || "").trim(),
+      timezone,
       weightLb: w,
       inches: inchesVal === "" ? undefined : Number.parseFloat(inchesVal),
       feeling: form.feeling,
@@ -162,6 +184,9 @@ export default function ProgressPage() {
             </p>
             <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
               Logged {latest.date}
+              {formatWeightTime(latest.weightTime)
+                ? ` · ${formatWeightTime(latest.weightTime)}`
+                : ""}
               {typeof latest.inches === "number" ? (
                 <>
                   {" "}
@@ -209,6 +234,19 @@ export default function ProgressPage() {
               type="date"
               value={form.date}
               onChange={(e) => setForm((f) => ({ ...f, date: e.target.value }))}
+              className="mt-1 w-full rounded-xl border border-zinc-200 bg-white px-3 py-2.5 text-sm dark:border-zinc-700 dark:bg-zinc-950"
+            />
+          </div>
+          <div>
+            <label className="text-xs font-medium text-zinc-600 dark:text-zinc-400">
+              Weight time
+            </label>
+            <input
+              type="time"
+              value={form.weightTime || ""}
+              onChange={(e) =>
+                setForm((f) => ({ ...f, weightTime: e.target.value }))
+              }
               className="mt-1 w-full rounded-xl border border-zinc-200 bg-white px-3 py-2.5 text-sm dark:border-zinc-700 dark:bg-zinc-950"
             />
           </div>
@@ -326,6 +364,9 @@ export default function ProgressPage() {
                 </p>
                 <p className="text-xs text-zinc-500">
                   {p.date}
+                  {formatWeightTime(p.weightTime)
+                    ? ` · ${formatWeightTime(p.weightTime)}`
+                    : ""}
                   {typeof p.inches === "number" ? ` · ${p.inches}"` : ""}
                 </p>
               </div>

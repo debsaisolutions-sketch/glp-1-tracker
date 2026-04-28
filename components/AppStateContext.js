@@ -171,6 +171,8 @@ function mapProgressFromDb(row) {
   return {
     id: row.entry_id,
     date: row.date,
+    weightTime: row.weight_time || "",
+    timezone: row.timezone || "",
     weightLb: parseNumericAmount(row.weight_lb) || 0,
     inches: Number.isFinite(inches) ? inches : undefined,
     feeling: row.feeling || "",
@@ -286,7 +288,7 @@ async function loadSupabaseSnapshot(userId) {
       .eq("user_id", userId),
     supabase
       .from("progress_logs")
-      .select("entry_id,date,weight_lb,inches,feeling,notes,created_at")
+      .select("entry_id,date,weight_time,timezone,weight_lb,inches,feeling,notes,created_at")
       .eq("user_id", userId),
     supabase
       .from("daily_logs")
@@ -440,6 +442,8 @@ async function syncSnapshotToSupabase(userId, snapshot) {
       user_id: userId,
       entry_id: row.id,
       date: row.date,
+      weight_time: row.weightTime || "",
+      timezone: row.timezone || "",
       weight_lb: parseNumericAmount(row.weightLb) || 0,
       inches:
         row.inches === "" || row.inches == null
