@@ -26,9 +26,26 @@ function sortByDateDesc(items) {
   );
 }
 
+function formatDoseTime(timeText) {
+  const raw = String(timeText || "").trim();
+  const match = raw.match(/^(\d{1,2}):(\d{2})$/);
+  if (!match) return "";
+  const hour24 = Number.parseInt(match[1], 10);
+  const minute = match[2];
+  if (!Number.isFinite(hour24) || hour24 < 0 || hour24 > 23) return "";
+  const suffix = hour24 >= 12 ? "PM" : "AM";
+  const hour12 = hour24 % 12 === 0 ? 12 : hour24 % 12;
+  return `${hour12}:${minute} ${suffix}`;
+}
+
 function emptyDoseForm() {
+  const now = new Date();
+  const localTime = `${String(now.getHours()).padStart(2, "0")}:${String(
+    now.getMinutes(),
+  ).padStart(2, "0")}`;
   return {
-    date: new Date().toISOString().slice(0, 10),
+    date: now.toISOString().slice(0, 10),
+    doseTime: localTime,
     units: 50,
     doseType: "full",
     feeling: FEELING_EMOJIS[1],
@@ -73,6 +90,7 @@ export default function DosesPage() {
     setEditingId(d.id);
     setForm({
       date: d.date,
+      doseTime: d.doseTime || "",
       units: d.units,
       doseType: d.doseType || "full",
       feeling: d.feeling || FEELING_EMOJIS[1],
@@ -97,9 +115,13 @@ export default function DosesPage() {
     e.preventDefault();
     const units = parseNumericAmount(form.units) || 0;
     const mg = unitsToMg(units, mgPerUnit);
+    const timezone =
+      Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
     const row = {
       id: editingId ?? newId(),
       date: form.date,
+      doseTime: String(form.doseTime || "").trim(),
+      timezone,
       units,
       mg: Math.round(mg * 1000) / 1000,
       doseType: form.doseType,
@@ -171,6 +193,19 @@ export default function DosesPage() {
               type="date"
               value={form.date}
               onChange={(e) => setForm((f) => ({ ...f, date: e.target.value }))}
+              className="mt-1 w-full rounded-xl border border-zinc-200 bg-white px-3 py-2.5 text-sm dark:border-zinc-700 dark:bg-zinc-950"
+            />
+          </div>
+          <div>
+            <label className="text-xs font-medium text-zinc-600 dark:text-zinc-400">
+              Dose time
+            </label>
+            <input
+              type="time"
+              value={form.doseTime || ""}
+              onChange={(e) =>
+                setForm((f) => ({ ...f, doseTime: e.target.value }))
+              }
               className="mt-1 w-full rounded-xl border border-zinc-200 bg-white px-3 py-2.5 text-sm dark:border-zinc-700 dark:bg-zinc-950"
             />
           </div>
@@ -310,7 +345,12 @@ export default function DosesPage() {
                   {d.mg} mg · {d.units} units
                 </p>
                 <p className="text-xs text-zinc-500">
-                  {d.date} · {d.doseType} · {d.feeling}
+                  {d.date}
+                  {formatDoseTime(d.doseTime)
+                    ? ` · ${formatDoseTime(d.doseTime)}`
+                    : ""}
+                  {" · "}
+                  {d.doseType} · {d.feeling}
                 </p>
               </div>
               <div className="flex shrink-0 gap-1.5">

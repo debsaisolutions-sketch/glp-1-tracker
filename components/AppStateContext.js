@@ -155,6 +155,8 @@ function mapDoseFromDb(row) {
   return {
     id: row.entry_id,
     date: row.date,
+    doseTime: row.dose_time || "",
+    timezone: row.timezone || "",
     units: parseNumericAmount(row.units) || 0,
     mg: parseNumericAmount(row.mg) || 0,
     doseType: row.dose_type || "full",
@@ -279,7 +281,7 @@ async function loadSupabaseSnapshot(userId) {
     supabase
       .from("dose_logs")
       .select(
-        "entry_id,date,units,mg,dose_type,feeling,side_effects,notes,created_at",
+        "entry_id,date,dose_time,timezone,units,mg,dose_type,feeling,side_effects,notes,created_at",
       )
       .eq("user_id", userId),
     supabase
@@ -420,6 +422,8 @@ async function syncSnapshotToSupabase(userId, snapshot) {
       user_id: userId,
       entry_id: row.id,
       date: row.date,
+      dose_time: row.doseTime || "",
+      timezone: row.timezone || "",
       units: parseNumericAmount(row.units) || 0,
       mg: parseNumericAmount(row.mg) || 0,
       dose_type: row.doseType || "full",
