@@ -188,6 +188,7 @@ function mapDailyFromDb(row) {
         : `fi-${index}-${Math.random().toString(36).slice(2, 8)}`,
     foodType: item?.foodType || item?.food_type || "",
     amount: item?.amount || "",
+    foodTime: item?.foodTime || item?.food_time || "",
     foodNotes: item?.foodNotes || item?.food_notes || "",
     estimatedProtein: parseNumericAmount(
       item?.estimatedProtein ?? item?.estimated_protein,
@@ -466,6 +467,7 @@ async function syncSnapshotToSupabase(userId, snapshot) {
                 : `fi-${index}-${Math.random().toString(36).slice(2, 8)}`,
             foodType: item?.foodType || "",
             amount: item?.amount || "",
+            foodTime: item?.foodTime || "",
             foodNotes: item?.foodNotes || "",
             estimatedProtein: parseNumericAmount(item?.estimatedProtein) || 0,
             estimatedCarbs: parseNumericAmount(item?.estimatedCarbs) || 0,

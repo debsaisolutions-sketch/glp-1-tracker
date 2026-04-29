@@ -17,6 +17,36 @@ function sortByDateDesc(items) {
   );
 }
 
+/** YYYY-MM-DD for `<input type="date">` using the browser's local calendar. */
+function formatLocalDateInput(date = new Date()) {
+  const y = date.getFullYear();
+  const m = date.getMonth() + 1;
+  const d = date.getDate();
+  const pad = (n) => String(n).padStart(2, "0");
+  return `${y}-${pad(m)}-${pad(d)}`;
+}
+
+/** Local HH:MM for `<input type="time">`. */
+function formatLocalTimeInput(date = new Date()) {
+  const pad = (n) => String(n).padStart(2, "0");
+  return `${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+
+/** 24h `HH:MM` -> 12-hour label (e.g. 13:05 -> 1:05 PM). */
+function formatFoodTimeDisplay(hhmm) {
+  const s = String(hhmm || "").trim();
+  if (!s) return "";
+  const m = s.match(/^(\d{1,2}):(\d{2})/);
+  if (!m) return s;
+  let h = Number.parseInt(m[1], 10);
+  const min = m[2];
+  if (!Number.isFinite(h) || h < 0 || h > 23) return s;
+  const isAm = h < 12;
+  let h12 = h % 12;
+  if (h12 === 0) h12 = 12;
+  return `${h12}:${min} ${isAm ? "AM" : "PM"}`;
+}
+
 function emptyFoodDraft() {
   return {
     foodNotes: "",
@@ -24,6 +54,9 @@ function emptyFoodDraft() {
     amountValue: "",
     amountUnit: "oz",
     amountRaw: "",
+    foodTime: formatLocalTimeInput(),
+    portionEaten: "all",
+    portionCustom: "",
     estimatedProtein: "",
     estimatedCarbs: "",
     estimatedFat: "",
@@ -37,9 +70,65 @@ function buildAmountText(draft) {
   const unit = String(draft?.amountUnit || "oz").trim();
   const raw = String(draft?.amountRaw || "").trim();
 
-  if (value && unit && unit !== "half") return `${value} ${unit}`;
-  if (unit === "half") return value ? `${value} half` : "half";
+  if (value && unit) return `${value} ${unit}`;
   return raw;
+}
+
+function getPortionMultiplier(draft) {
+  switch (draft.portionEaten) {
+    case "half":
+      return 0.5;
+    case "quarter":
+      return 0.25;
+    case "threeQuarter":
+      return 0.75;
+    case "custom": {
+      const raw = String(draft.portionCustom || "").trim().replace(/%/g, "");
+      if (!raw) return 1;
+      const v = Number.parseFloat(raw);
+      if (!Number.isFinite(v) || v <= 0) return 1;
+      if (v <= 1) return v;
+      return Math.min(v / 100, 1);
+    }
+    default:
+      return 1;
+  }
+}
+
+function portionPhrase(portionEaten) {
+  switch (portionEaten) {
+    case "half":
+      return "half";
+    case "quarter":
+      return "a quarter";
+    case "threeQuarter":
+      return "three quarters";
+    case "custom":
+      return "your custom portion";
+    default:
+      return "";
+  }
+}
+
+/** Parse saved amount text into draft fields; migrate legacy "X half" to oz + portion half. */
+function foodAmountDraftFromText(amountText) {
+  const parsed = parseAmountParts(amountText);
+  if (parsed.amountUnit === "half") {
+    return {
+      amountValue: parsed.amountValue,
+      amountUnit: "oz",
+      amountRaw: parsed.amountRaw,
+      portionEaten: "half",
+      portionCustom: "",
+    };
+  }
+  return {
+    amountValue: parsed.amountValue,
+    amountUnit: parsed.amountUnit,
+    amountRaw: parsed.amountRaw,
+    portionEaten: "all",
+    portionCustom: "",
+  };
 }
 
 function parseAmountParts(amountText) {
@@ -49,11 +138,9 @@ function parseAmountParts(amountText) {
   }
 
   const normalized = raw.toLowerCase().replace(/\s+/g, " ");
-  if (normalized === "half") {
-    return { amountValue: "", amountUnit: "half", amountRaw: raw };
-  }
 
-  const unitsPattern = "(oz|grams|eggs|strips|scoop|cup|tbsp|whole|half)";
+  const unitsPattern =
+    "(serving|container|bottle|shake|oz|grams|eggs|strips|scoop|cup|tbsp|whole|half)";
   const match = normalized.match(
     new RegExp(`^(\\d+(?:\\.\\d+)?)\\s*${unitsPattern}$`),
   );
@@ -93,10 +180,9 @@ const btnEdit =
 
 export default function DailyPage() {
   const { daily: logs, addDaily, setDaily, hydrated } = useAppState();
-  const [selectedDate, setSelectedDate] = useState(() =>
-    new Date().toISOString().slice(0, 10),
-  );
-  const [foodDraft, setFoodDraft] = useState(emptyFoodDraft);
+  const [selectedDate, setSelectedDate] = useState(() => formatLocalDateInput());
+  const [foodDraft, setFoodDraft] = useState(() => emptyFoodDraft());
+  const [showCustomAmountInput, setShowCustomAmountInput] = useState(false);
   const [editingFoodItemId, setEditingFoodItemId] = useState(null);
   const [selectedFoodItems, setSelectedFoodItems] = useState([]);
   const [waterOz, setWaterOz] = useState("");
@@ -115,6 +201,7 @@ export default function DailyPage() {
           : `fi-${idx}-${Math.random().toString(36).slice(2, 8)}`,
       foodType: String(raw?.foodType || "").trim(),
       amount: String(raw?.amount || "").trim(),
+      foodTime: String(raw?.foodTime ?? "").trim(),
       foodNotes: String(raw?.foodNotes || "").trim(),
       estimatedProtein: Number.parseFloat(raw?.estimatedProtein) || 0,
       estimatedCarbs: Number.parseFloat(raw?.estimatedCarbs) || 0,
@@ -233,6 +320,7 @@ export default function DailyPage() {
     setFeeling(selectedDateRows[0]?.feeling || FEELING_EMOJIS[2]);
     setNotes(selectedDateRows[0]?.notes || "");
     setFoodDraft(emptyFoodDraft());
+    setShowCustomAmountInput(false);
     setEditingFoodItemId(null);
     setFoodFormError("");
     setFoodEstimateMessage("");
@@ -269,16 +357,21 @@ export default function DailyPage() {
       setSelectedFoodItems((items) => [...items, nextItem]);
     }
     setFoodDraft(emptyFoodDraft());
+    setShowCustomAmountInput(false);
   }
 
   function startEditFoodItem(item) {
     setSaveStatus("");
     setFoodFormError("");
     setFoodEstimateMessage("");
+    setShowCustomAmountInput(false);
     setEditingFoodItemId(item.id);
     setFoodDraft({
       foodType: item.foodType || "",
-      ...parseAmountParts(item.amount),
+      ...foodAmountDraftFromText(item.amount),
+      foodTime: String(item.foodTime || "").trim()
+        ? String(item.foodTime).trim()
+        : formatLocalTimeInput(),
       foodNotes: item.foodNotes || "",
       estimatedProtein:
         item.estimatedProtein != null && item.estimatedProtein !== ""
@@ -308,6 +401,7 @@ export default function DailyPage() {
     setFoodFormError("");
     setFoodEstimateMessage("");
     setFoodDraft(emptyFoodDraft());
+    setShowCustomAmountInput(false);
   }
 
   function applyRecentFoodTemplate(item) {
@@ -316,9 +410,11 @@ export default function DailyPage() {
     setFoodEstimateMessage("");
     setEditingFoodItemId(null);
     setHideFoodSuggestions(true);
+    setShowCustomAmountInput(false);
     setFoodDraft({
       foodType: item.foodType || "",
-      ...parseAmountParts(item.amount),
+      ...foodAmountDraftFromText(item.amount),
+      foodTime: formatLocalTimeInput(),
       foodNotes: item.foodNotes || "",
       estimatedProtein:
         item.estimatedProtein != null && item.estimatedProtein !== ""
@@ -361,14 +457,32 @@ export default function DailyPage() {
       return;
     }
 
+    const mult = getPortionMultiplier(foodDraft);
+    const scaled = {
+      protein: Math.round(estimate.protein * mult * 10) / 10,
+      carbs: Math.round(estimate.carbs * mult * 10) / 10,
+      fat: Math.round(estimate.fat * mult * 10) / 10,
+      calories: Math.round(estimate.calories * mult),
+    };
+
     setFoodDraft((f) => ({
       ...f,
-      estimatedProtein: String(estimate.protein),
-      estimatedCarbs: String(estimate.carbs),
-      estimatedFat: String(estimate.fat),
-      estimatedCalories: String(estimate.calories),
+      estimatedProtein: String(scaled.protein),
+      estimatedCarbs: String(scaled.carbs),
+      estimatedFat: String(scaled.fat),
+      estimatedCalories: String(scaled.calories),
     }));
-    setFoodEstimateMessage("Estimated macros added (approximate).");
+    let msg = "Estimated macros added (approximate).";
+    if (foodDraft.portionEaten !== "all") {
+      const phrase = portionPhrase(foodDraft.portionEaten);
+      msg =
+        amount && phrase
+          ? `Estimated for ${phrase} of ${amount}. ${msg}`
+          : phrase
+            ? `Estimated for ${phrase}. ${msg}`
+            : msg;
+    }
+    setFoodEstimateMessage(msg);
   }
 
   function removeFoodItem(id) {
@@ -406,6 +520,8 @@ export default function DailyPage() {
   }
 
   const sorted = sortByDateDesc(logs);
+  const hasAmountRaw = String(foodDraft.amountRaw || "").trim() !== "";
+  const shouldShowCustomAmount = showCustomAmountInput || hasAmountRaw;
   const nonSelectedLogs = sorted.filter((log) => log.date !== selectedDate);
   const visibleRecentFoods = useMemo(() => {
     const source =
@@ -616,22 +732,94 @@ export default function DailyPage() {
                   <option value="cup">cup</option>
                   <option value="tbsp">tbsp</option>
                   <option value="whole">whole</option>
-                  <option value="half">half</option>
+                  <option value="serving">serving</option>
+                  <option value="bottle">bottle</option>
+                  <option value="shake">shake</option>
+                  <option value="container">container</option>
                 </select>
               </div>
+              {!shouldShowCustomAmount ? (
+                <button
+                  type="button"
+                  onClick={() => setShowCustomAmountInput(true)}
+                  className="mt-2 text-xs font-medium text-zinc-500 underline underline-offset-2 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200"
+                >
+                  Need a custom amount?
+                </button>
+              ) : (
+                <div className="mt-2">
+                  <label className="text-xs font-medium text-zinc-600 dark:text-zinc-400">
+                    Custom amount
+                  </label>
+                  <input
+                    value={foodDraft.amountRaw}
+                    onChange={(e) =>
+                      setFoodDraft((f) => {
+                        setSaveStatus("");
+                        setFoodEstimateMessage("");
+                        return { ...f, amountRaw: e.target.value };
+                      })
+                    }
+                    placeholder="e.g. a handful, 3 bites, small bowl"
+                    className="mt-1 w-full rounded-xl border border-zinc-200 bg-white px-3 py-2.5 text-sm dark:border-zinc-700 dark:bg-zinc-950"
+                  />
+                </div>
+              )}
+            </div>
+          </div>
+          <div>
+            <label className="text-xs font-medium text-zinc-600 dark:text-zinc-400">
+              Food time
+            </label>
+            <input
+              type="time"
+              value={foodDraft.foodTime}
+              onChange={(e) =>
+                setFoodDraft((f) => {
+                  setSaveStatus("");
+                  setFoodEstimateMessage("");
+                  return { ...f, foodTime: e.target.value };
+                })
+              }
+              className="mt-1 w-full rounded-xl border border-zinc-200 bg-white px-3 py-2.5 text-sm dark:border-zinc-700 dark:bg-zinc-950"
+            />
+          </div>
+          <div>
+            <label className="text-xs font-medium text-zinc-600 dark:text-zinc-400">
+              Portion eaten
+            </label>
+            <select
+              value={foodDraft.portionEaten}
+              onChange={(e) =>
+                setFoodDraft((f) => {
+                  setSaveStatus("");
+                  setFoodEstimateMessage("");
+                  return { ...f, portionEaten: e.target.value };
+                })
+              }
+              className="mt-1 w-full rounded-xl border border-zinc-200 bg-white px-3 py-2.5 text-sm dark:border-zinc-700 dark:bg-zinc-950"
+            >
+              <option value="all">All</option>
+              <option value="half">Half</option>
+              <option value="quarter">Quarter</option>
+              <option value="threeQuarter">Three quarters</option>
+              <option value="custom">Custom</option>
+            </select>
+            {foodDraft.portionEaten === "custom" ? (
               <input
-                value={foodDraft.amountRaw}
+                inputMode="decimal"
+                value={foodDraft.portionCustom}
                 onChange={(e) =>
                   setFoodDraft((f) => {
                     setSaveStatus("");
                     setFoodEstimateMessage("");
-                    return { ...f, amountRaw: e.target.value };
+                    return { ...f, portionCustom: e.target.value };
                   })
                 }
-                placeholder="Amount text fallback (optional)"
+                placeholder="e.g. 0.5 or 50 (%)"
                 className="mt-2 w-full rounded-xl border border-zinc-200 bg-white px-3 py-2.5 text-sm dark:border-zinc-700 dark:bg-zinc-950"
               />
-            </div>
+            ) : null}
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
@@ -903,11 +1091,17 @@ export default function DailyPage() {
                 <p className="text-sm font-semibold text-zinc-900 dark:text-zinc-50">
                   {item.foodType || "Food item"}
                 </p>
-                {item.amount ? (
-                  <p className="mt-1 text-xs text-zinc-500">
-                    {item.amount}
-                  </p>
-                ) : null}
+                {(() => {
+                  const amt = String(item.amount || "").trim();
+                  const timeLabel = formatFoodTimeDisplay(item.foodTime);
+                  if (!amt && !timeLabel) return null;
+                  const line = [amt, timeLabel].filter(Boolean).join(" · ");
+                  return (
+                    <p className="mt-1 text-xs text-zinc-500">
+                      {line}
+                    </p>
+                  );
+                })()}
                 {(Number.parseFloat(item.estimatedProtein) > 0 ||
                   Number.parseFloat(item.estimatedCarbs) > 0 ||
                   Number.parseFloat(item.estimatedFat) > 0 ||
