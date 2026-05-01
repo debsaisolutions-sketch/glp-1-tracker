@@ -62,6 +62,7 @@ function emptyFoodDraft() {
     estimatedFat: "",
     estimatedCalories: "",
     proteinGrams: "",
+    macrosFromEstimate: false,
   };
 }
 
@@ -93,6 +94,18 @@ function getPortionMultiplier(draft) {
     default:
       return 1;
   }
+}
+
+function scaleMacroGramString(raw, mult) {
+  const v = Number.parseFloat(String(raw ?? "").trim());
+  if (!Number.isFinite(v)) return "";
+  return String(Math.round(v * mult * 10) / 10);
+}
+
+function scaleMacroCaloriesString(raw, mult) {
+  const v = Number.parseFloat(String(raw ?? "").trim());
+  if (!Number.isFinite(v)) return "";
+  return String(Math.round(v * mult));
 }
 
 function portionPhrase(portionEaten) {
@@ -327,12 +340,38 @@ export default function DailyPage() {
   }, [selectedDateRows]);
 
   useEffect(() => {
-    if (saveStatus !== "saved") return;
+    if (saveStatus !== "saved" && saveStatus !== "foodSaved") return;
     const timer = setTimeout(() => {
       setSaveStatus("");
     }, 2500);
     return () => clearTimeout(timer);
   }, [saveStatus]);
+
+  function buildDailyRowForSelectedDate(foodItemsList) {
+    const firstItem = foodItemsList[0] || null;
+    const primaryId = selectedDateRows[0]?.id || newId();
+    return {
+      id: primaryId,
+      date: selectedDate,
+      foodItems: foodItemsList.map((item, index) => normalizeFoodItem(item, index)),
+      foodType: firstItem?.foodType || "",
+      amount: firstItem?.amount || "",
+      foodNotes: firstItem?.foodNotes || "",
+      estimatedProtein: firstItem?.estimatedProtein || 0,
+      estimatedCarbs: firstItem?.estimatedCarbs || 0,
+      estimatedFat: firstItem?.estimatedFat || 0,
+      estimatedCalories: firstItem?.estimatedCalories || 0,
+      proteinGrams: firstItem?.proteinGrams || 0,
+      waterOz: Number.parseFloat(waterOz) || 0,
+      feeling,
+      notes: notes.trim(),
+    };
+  }
+
+  function persistDailyRowForSelectedDate(foodItemsList) {
+    const row = buildDailyRowForSelectedDate(foodItemsList);
+    setDaily((list) => [row, ...list.filter((entry) => entry.date !== selectedDate)]);
+  }
 
   function submitFoodItem(e) {
     e.preventDefault();
@@ -348,14 +387,18 @@ export default function DailyPage() {
       setFoodFormError("Add a food, amount, note, or nutrition estimate first.");
       return;
     }
-    if (editingFoodItemId) {
-      setSelectedFoodItems((items) =>
-        items.map((item) => (item.id === editingFoodItemId ? nextItem : item)),
-      );
-      setEditingFoodItemId(null);
-    } else {
-      setSelectedFoodItems((items) => [...items, nextItem]);
-    }
+    const nextList = editingFoodItemId
+      ? selectedFoodItems.map((item) =>
+          item.id === editingFoodItemId ? nextItem : item,
+        )
+      : [...selectedFoodItems, nextItem];
+
+    setSelectedFoodItems(nextList);
+    if (editingFoodItemId) setEditingFoodItemId(null);
+
+    persistDailyRowForSelectedDate(nextList);
+    setSaveStatus("foodSaved");
+
     setFoodDraft(emptyFoodDraft());
     setShowCustomAmountInput(false);
   }
@@ -393,6 +436,7 @@ export default function DailyPage() {
         item.proteinGrams != null && item.proteinGrams !== ""
           ? String(item.proteinGrams)
           : "",
+      macrosFromEstimate: false,
     });
   }
 
@@ -436,6 +480,7 @@ export default function DailyPage() {
         item.proteinGrams != null && item.proteinGrams !== ""
           ? String(item.proteinGrams)
           : "",
+      macrosFromEstimate: false,
     });
   }
 
@@ -471,6 +516,7 @@ export default function DailyPage() {
       estimatedCarbs: String(scaled.carbs),
       estimatedFat: String(scaled.fat),
       estimatedCalories: String(scaled.calories),
+      macrosFromEstimate: true,
     }));
     let msg = "Estimated macros added (approximate).";
     if (foodDraft.portionEaten !== "all") {
@@ -485,6 +531,56 @@ export default function DailyPage() {
     setFoodEstimateMessage(msg);
   }
 
+  function onMultiplyMacrosByAmount() {
+    setFoodFormError("");
+    setSaveStatus("");
+    if (foodDraft.macrosFromEstimate) {
+      setFoodEstimateMessage(
+        "Estimated macros already use the entered amount.",
+      );
+      return;
+    }
+    const q = Number.parseFloat(String(foodDraft.amountValue || "").trim());
+    if (!Number.isFinite(q) || q <= 0) {
+      setFoodEstimateMessage("Enter an amount greater than 0 first.");
+      return;
+    }
+    setFoodDraft((f) => {
+      const epNum = Number.parseFloat(String(f.estimatedProtein ?? "").trim());
+      const pgNum = Number.parseFloat(String(f.proteinGrams ?? "").trim());
+      const hasEp = Number.isFinite(epNum);
+      const hasPg = Number.isFinite(pgNum);
+
+      let estimatedProtein;
+      let proteinGrams;
+      if (hasEp && hasPg) {
+        estimatedProtein = scaleMacroGramString(f.estimatedProtein, q);
+        proteinGrams = scaleMacroGramString(f.proteinGrams, q);
+      } else if (hasEp && !hasPg) {
+        estimatedProtein = scaleMacroGramString(f.estimatedProtein, q);
+        proteinGrams = estimatedProtein;
+      } else if (!hasEp && hasPg) {
+        proteinGrams = scaleMacroGramString(f.proteinGrams, q);
+        estimatedProtein = proteinGrams;
+      } else {
+        estimatedProtein = "";
+        proteinGrams = "";
+      }
+
+      return {
+        ...f,
+        estimatedProtein,
+        proteinGrams,
+        estimatedCarbs: scaleMacroGramString(f.estimatedCarbs, q),
+        estimatedFat: scaleMacroGramString(f.estimatedFat, q),
+        estimatedCalories: scaleMacroCaloriesString(f.estimatedCalories, q),
+        macrosFromEstimate: false,
+      };
+    });
+    const label = Number.isInteger(q) ? String(q) : String(q);
+    setFoodEstimateMessage(`Macros multiplied by ${label}.`);
+  }
+
   function removeFoodItem(id) {
     setSaveStatus("");
     setSelectedFoodItems((items) => items.filter((item) => item.id !== id));
@@ -495,27 +591,7 @@ export default function DailyPage() {
 
   function submitDailyLog() {
     setFoodFormError("");
-    const firstItem = selectedFoodItems[0] || null;
-    const primaryId = selectedDateRows[0]?.id || newId();
-
-    const row = {
-      id: primaryId,
-      date: selectedDate,
-      foodItems: selectedFoodItems.map((item, index) => normalizeFoodItem(item, index)),
-      // Legacy scalar fields remain populated from first item for compatibility.
-      foodType: firstItem?.foodType || "",
-      amount: firstItem?.amount || "",
-      foodNotes: firstItem?.foodNotes || "",
-      estimatedProtein: firstItem?.estimatedProtein || 0,
-      estimatedCarbs: firstItem?.estimatedCarbs || 0,
-      estimatedFat: firstItem?.estimatedFat || 0,
-      estimatedCalories: firstItem?.estimatedCalories || 0,
-      proteinGrams: firstItem?.proteinGrams || 0,
-      waterOz: Number.parseFloat(waterOz) || 0,
-      feeling,
-      notes: notes.trim(),
-    };
-    setDaily((list) => [row, ...list.filter((entry) => entry.date !== selectedDate)]);
+    persistDailyRowForSelectedDate(selectedFoodItems);
     setSaveStatus("saved");
   }
 
@@ -707,7 +783,11 @@ export default function DailyPage() {
                     setFoodDraft((f) => {
                       setSaveStatus("");
                       setFoodEstimateMessage("");
-                      return { ...f, amountValue: e.target.value };
+                      return {
+                        ...f,
+                        amountValue: e.target.value,
+                        macrosFromEstimate: false,
+                      };
                     })
                   }
                   placeholder="e.g. 4.4"
@@ -719,7 +799,11 @@ export default function DailyPage() {
                     setFoodDraft((f) => {
                       setSaveStatus("");
                       setFoodEstimateMessage("");
-                      return { ...f, amountUnit: e.target.value };
+                      return {
+                        ...f,
+                        amountUnit: e.target.value,
+                        macrosFromEstimate: false,
+                      };
                     })
                   }
                   className="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2.5 text-sm dark:border-zinc-700 dark:bg-zinc-950"
@@ -794,7 +878,11 @@ export default function DailyPage() {
                 setFoodDraft((f) => {
                   setSaveStatus("");
                   setFoodEstimateMessage("");
-                  return { ...f, portionEaten: e.target.value };
+                  return {
+                    ...f,
+                    portionEaten: e.target.value,
+                    macrosFromEstimate: false,
+                  };
                 })
               }
               className="mt-1 w-full rounded-xl border border-zinc-200 bg-white px-3 py-2.5 text-sm dark:border-zinc-700 dark:bg-zinc-950"
@@ -813,7 +901,11 @@ export default function DailyPage() {
                   setFoodDraft((f) => {
                     setSaveStatus("");
                     setFoodEstimateMessage("");
-                    return { ...f, portionCustom: e.target.value };
+                    return {
+                      ...f,
+                      portionCustom: e.target.value,
+                      macrosFromEstimate: false,
+                    };
                   })
                 }
                 placeholder="e.g. 0.5 or 50 (%)"
@@ -833,7 +925,11 @@ export default function DailyPage() {
                   setFoodDraft((f) => {
                     setSaveStatus("");
                     setFoodEstimateMessage("");
-                    return { ...f, estimatedProtein: e.target.value };
+                    return {
+                      ...f,
+                      estimatedProtein: e.target.value,
+                      macrosFromEstimate: false,
+                    };
                   })
                 }
                 className="mt-1 w-full rounded-xl border border-zinc-200 bg-white px-3 py-2.5 text-sm dark:border-zinc-700 dark:bg-zinc-950"
@@ -850,7 +946,11 @@ export default function DailyPage() {
                   setFoodDraft((f) => {
                     setSaveStatus("");
                     setFoodEstimateMessage("");
-                    return { ...f, estimatedCarbs: e.target.value };
+                    return {
+                      ...f,
+                      estimatedCarbs: e.target.value,
+                      macrosFromEstimate: false,
+                    };
                   })
                 }
                 className="mt-1 w-full rounded-xl border border-zinc-200 bg-white px-3 py-2.5 text-sm dark:border-zinc-700 dark:bg-zinc-950"
@@ -867,7 +967,11 @@ export default function DailyPage() {
                   setFoodDraft((f) => {
                     setSaveStatus("");
                     setFoodEstimateMessage("");
-                    return { ...f, estimatedFat: e.target.value };
+                    return {
+                      ...f,
+                      estimatedFat: e.target.value,
+                      macrosFromEstimate: false,
+                    };
                   })
                 }
                 className="mt-1 w-full rounded-xl border border-zinc-200 bg-white px-3 py-2.5 text-sm dark:border-zinc-700 dark:bg-zinc-950"
@@ -884,7 +988,11 @@ export default function DailyPage() {
                   setFoodDraft((f) => {
                     setSaveStatus("");
                     setFoodEstimateMessage("");
-                    return { ...f, estimatedCalories: e.target.value };
+                    return {
+                      ...f,
+                      estimatedCalories: e.target.value,
+                      macrosFromEstimate: false,
+                    };
                   })
                 }
                 className="mt-1 w-full rounded-xl border border-zinc-200 bg-white px-3 py-2.5 text-sm dark:border-zinc-700 dark:bg-zinc-950"
@@ -903,12 +1011,32 @@ export default function DailyPage() {
                   setFoodDraft((f) => {
                     setSaveStatus("");
                     setFoodEstimateMessage("");
-                    return { ...f, proteinGrams: e.target.value };
+                    return {
+                      ...f,
+                      proteinGrams: e.target.value,
+                      macrosFromEstimate: false,
+                    };
                   })
                 }
                 className="mt-1 w-full rounded-xl border border-zinc-200 bg-white px-3 py-2.5 text-sm dark:border-zinc-700 dark:bg-zinc-950"
               />
             </div>
+          </div>
+
+          <div className="flex flex-col gap-1">
+            <button
+              type="button"
+              onClick={onMultiplyMacrosByAmount}
+              disabled={foodDraft.macrosFromEstimate}
+              className="w-full rounded-xl border border-zinc-200 bg-white py-2 text-xs font-semibold text-zinc-700 hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-zinc-600 dark:bg-zinc-900 dark:text-zinc-200 dark:hover:bg-zinc-800 sm:w-auto sm:self-start sm:px-4"
+            >
+              Multiply macros by amount
+            </button>
+            {foodDraft.macrosFromEstimate ? (
+              <p className="text-xs text-zinc-500 dark:text-zinc-400">
+                Estimated macros already use the entered amount.
+              </p>
+            ) : null}
           </div>
 
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
@@ -1181,6 +1309,10 @@ export default function DailyPage() {
       {saveStatus === "saved" ? (
         <p className="text-sm font-medium text-teal-700 dark:text-teal-300">
           Daily log saved.
+        </p>
+      ) : saveStatus === "foodSaved" ? (
+        <p className="text-sm font-medium text-teal-700 dark:text-teal-300">
+          Food item saved.
         </p>
       ) : null}
       <div className="space-y-2 pt-2">
