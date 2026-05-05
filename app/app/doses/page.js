@@ -45,6 +45,42 @@ function formatDoseWeekday(dateText) {
   return d.toLocaleDateString(undefined, { weekday: "short" });
 }
 
+const APPETITE_MARKER_RE = /\[APPETITE_RETURN:([a-z0-9_]+)\]/i;
+const APPETITE_RETURN_OPTIONS = [
+  { value: "", label: "Not tracked" },
+  { value: "controlled_all_week", label: "Appetite controlled all week" },
+  { value: "before_day_4", label: "Food noise returned before day 4" },
+  { value: "day_5", label: "Food noise returned day 5" },
+  { value: "day_6", label: "Food noise returned day 6" },
+  { value: "day_7", label: "Food noise returned day 7" },
+];
+
+function parseAppetiteReturnFromNotes(notesText) {
+  const text = String(notesText || "");
+  const match = text.match(APPETITE_MARKER_RE);
+  const value = String(match?.[1] || "").toLowerCase();
+  return APPETITE_RETURN_OPTIONS.some((opt) => opt.value === value) ? value : "";
+}
+
+function stripAppetiteMarker(notesText) {
+  return String(notesText || "")
+    .replace(APPETITE_MARKER_RE, "")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
+function appetiteReturnLabel(value) {
+  const match = APPETITE_RETURN_OPTIONS.find((opt) => opt.value === value);
+  return match?.label || "";
+}
+
+function buildNotesWithAppetiteMarker(notesText, appetiteReturn) {
+  const clean = stripAppetiteMarker(notesText);
+  const marker = appetiteReturn ? `[APPETITE_RETURN:${appetiteReturn}]` : "";
+  if (!marker) return clean;
+  return clean ? `${clean}\n\n${marker}` : marker;
+}
+
 function emptyDoseForm() {
   const now = new Date();
   const localTime = `${String(now.getHours()).padStart(2, "0")}:${String(
@@ -58,6 +94,7 @@ function emptyDoseForm() {
     feeling: FEELING_EMOJIS[1],
     sideEffects: [],
     notes: "",
+    appetiteReturn: "",
   };
 }
 
@@ -94,6 +131,7 @@ export default function DosesPage() {
   }
 
   function beginEdit(d) {
+  const appetiteReturn = parseAppetiteReturnFromNotes(d.notes);
     setEditingId(d.id);
     setForm({
       date: d.date,
@@ -102,7 +140,8 @@ export default function DosesPage() {
       doseType: d.doseType || "full",
       feeling: d.feeling || FEELING_EMOJIS[1],
       sideEffects: Array.isArray(d.sideEffects) ? [...d.sideEffects] : [],
-      notes: d.notes ?? "",
+    notes: stripAppetiteMarker(d.notes),
+    appetiteReturn,
     });
   }
 
@@ -134,7 +173,7 @@ export default function DosesPage() {
       doseType: form.doseType,
       feeling: form.feeling,
       sideEffects: form.sideEffects,
-      notes: form.notes.trim(),
+      notes: buildNotesWithAppetiteMarker(form.notes, form.appetiteReturn),
     };
     if (editingId) {
       setDoses((list) => list.map((x) => (x.id === editingId ? row : x)));
@@ -298,6 +337,34 @@ export default function DosesPage() {
 
           <div>
             <label className="text-xs font-medium text-zinc-600 dark:text-zinc-400">
+              Appetite / food noise this week
+            </label>
+            <select
+              value={form.appetiteReturn}
+              onChange={(e) =>
+                setForm((f) => ({ ...f, appetiteReturn: e.target.value }))
+              }
+              className="mt-1 w-full rounded-xl border border-zinc-200 bg-white px-3 py-2.5 text-sm dark:border-zinc-700 dark:bg-zinc-950"
+            >
+              {APPETITE_RETURN_OPTIONS.map((opt) => (
+                <option key={opt.value || "not_tracked"} value={opt.value}>
+                  {opt.label}
+                </option>
+              ))}
+            </select>
+            <p className="mt-2 text-xs text-zinc-500 dark:text-zinc-400">
+              Optional check-in to help spot weekly appetite patterns.
+            </p>
+            <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
+              If appetite or food noise returns later in the week, it does not always
+              mean your weekly dose should increase. Timing, consistency, and
+              split-dose discussions with your prescriber may also be relevant.
+              Educational only — not medical advice.
+            </p>
+          </div>
+
+          <div>
+            <label className="text-xs font-medium text-zinc-600 dark:text-zinc-400">
               Notes
             </label>
             <textarea
@@ -337,59 +404,68 @@ export default function DosesPage() {
         {sorted.length === 0 ? (
           <p className="text-sm text-zinc-500">No doses logged yet.</p>
         ) : null}
-        {sorted.map((d) => (
-          <Card
-            key={d.id}
-            className={
-              editingId === d.id
-                ? "ring-2 ring-teal-500 ring-offset-2 ring-offset-zinc-50 dark:ring-offset-zinc-950"
-                : ""
-            }
-          >
-            <div className="flex items-start justify-between gap-2">
-              <div className="min-w-0 flex-1">
-                <p className="text-sm font-semibold text-zinc-900 dark:text-zinc-50">
-                  {d.mg} mg · {d.units} units
-                </p>
-                <p className="text-xs text-zinc-500">
-                  {formatDoseWeekday(d.date) ? `${formatDoseWeekday(d.date)} · ` : ""}
-                  {d.date}
-                  {formatDoseTime(d.doseTime)
-                    ? ` · ${formatDoseTime(d.doseTime)}`
-                    : ""}
-                  {" · "}
-                  {d.doseType} · {d.feeling}
-                </p>
+        {sorted.map((d) => {
+          const appetiteReturn = parseAppetiteReturnFromNotes(d.notes);
+          const cleanNotes = stripAppetiteMarker(d.notes);
+          return (
+            <Card
+              key={d.id}
+              className={
+                editingId === d.id
+                  ? "ring-2 ring-teal-500 ring-offset-2 ring-offset-zinc-50 dark:ring-offset-zinc-950"
+                  : ""
+              }
+            >
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-semibold text-zinc-900 dark:text-zinc-50">
+                    {d.mg} mg · {d.units} units
+                  </p>
+                  <p className="text-xs text-zinc-500">
+                    {formatDoseWeekday(d.date) ? `${formatDoseWeekday(d.date)} · ` : ""}
+                    {d.date}
+                    {formatDoseTime(d.doseTime)
+                      ? ` · ${formatDoseTime(d.doseTime)}`
+                      : ""}
+                    {" · "}
+                    {d.doseType} · {d.feeling}
+                  </p>
+                </div>
+                <div className="flex shrink-0 gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => beginEdit(d)}
+                    className={btnEdit}
+                  >
+                    Edit
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => confirmDeleteDose(d.id)}
+                    className={btnDelete}
+                  >
+                    Delete
+                  </button>
+                </div>
               </div>
-              <div className="flex shrink-0 gap-1.5">
-                <button
-                  type="button"
-                  onClick={() => beginEdit(d)}
-                  className={btnEdit}
-                >
-                  Edit
-                </button>
-                <button
-                  type="button"
-                  onClick={() => confirmDeleteDose(d.id)}
-                  className={btnDelete}
-                >
-                  Delete
-                </button>
-              </div>
-            </div>
-            {d.sideEffects.length ? (
-              <p className="mt-2 text-xs text-zinc-600 dark:text-zinc-400">
-                Side effects: {d.sideEffects.join(", ")}
-              </p>
-            ) : null}
-            {d.notes ? (
-              <p className="mt-2 text-sm leading-relaxed text-zinc-700 dark:text-zinc-300">
-                {d.notes}
-              </p>
-            ) : null}
-          </Card>
-        ))}
+              {appetiteReturn ? (
+                <p className="mt-2 text-xs text-zinc-600 dark:text-zinc-400">
+                  Appetite/food noise: {appetiteReturnLabel(appetiteReturn)}
+                </p>
+              ) : null}
+              {d.sideEffects.length ? (
+                <p className="mt-2 text-xs text-zinc-600 dark:text-zinc-400">
+                  Side effects: {d.sideEffects.join(", ")}
+                </p>
+              ) : null}
+              {cleanNotes ? (
+                <p className="mt-2 text-sm leading-relaxed text-zinc-700 dark:text-zinc-300">
+                  {cleanNotes}
+                </p>
+              ) : null}
+            </Card>
+          );
+        })}
       </div>
     </div>
   );
