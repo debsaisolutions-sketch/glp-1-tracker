@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Card } from "@/components/Card";
 import { EmojiPicker } from "@/components/EmojiPicker";
 import { useAppState } from "@/components/AppStateContext";
@@ -181,9 +181,7 @@ function recentFoodDedupeKey(foodType, amount) {
 
 function recentFoodChipLabel(item) {
   const type = String(item?.foodType || "").trim() || "Food";
-  const amt = String(item?.amount || "").trim();
-  const line = amt ? `${type} — ${amt}` : type;
-  return line.length > 52 ? `${line.slice(0, 49)}…` : line;
+  return type.length > 52 ? `${type.slice(0, 49)}…` : type;
 }
 
 const btnDelete =
@@ -205,6 +203,7 @@ export default function DailyPage() {
   const [foodEstimateMessage, setFoodEstimateMessage] = useState("");
   const [saveStatus, setSaveStatus] = useState("");
   const [hideFoodSuggestions, setHideFoodSuggestions] = useState(false);
+  const foodTypeAreaRef = useRef(null);
 
   function normalizeFoodItem(raw, idx = 0) {
     return {
@@ -347,6 +346,17 @@ export default function DailyPage() {
     return () => clearTimeout(timer);
   }, [saveStatus]);
 
+  useEffect(() => {
+    function onPointerDown(e) {
+      if (!foodTypeAreaRef.current) return;
+      if (!foodTypeAreaRef.current.contains(e.target)) {
+        setHideFoodSuggestions(true);
+      }
+    }
+    document.addEventListener("mousedown", onPointerDown);
+    return () => document.removeEventListener("mousedown", onPointerDown);
+  }, []);
+
   function buildDailyRowForSelectedDate(foodItemsList) {
     const firstItem = foodItemsList[0] || null;
     const primaryId = selectedDateRows[0]?.id || newId();
@@ -457,29 +467,18 @@ export default function DailyPage() {
     setShowCustomAmountInput(false);
     setFoodDraft({
       foodType: item.foodType || "",
-      ...foodAmountDraftFromText(item.amount),
+      amountValue: "",
+      amountUnit: "oz",
+      amountRaw: "",
       foodTime: formatLocalTimeInput(),
-      foodNotes: item.foodNotes || "",
-      estimatedProtein:
-        item.estimatedProtein != null && item.estimatedProtein !== ""
-          ? String(item.estimatedProtein)
-          : "",
-      estimatedCarbs:
-        item.estimatedCarbs != null && item.estimatedCarbs !== ""
-          ? String(item.estimatedCarbs)
-          : "",
-      estimatedFat:
-        item.estimatedFat != null && item.estimatedFat !== ""
-          ? String(item.estimatedFat)
-          : "",
-      estimatedCalories:
-        item.estimatedCalories != null && item.estimatedCalories !== ""
-          ? String(item.estimatedCalories)
-          : "",
-      proteinGrams:
-        item.proteinGrams != null && item.proteinGrams !== ""
-          ? String(item.proteinGrams)
-          : "",
+      foodNotes: "",
+      portionEaten: "all",
+      portionCustom: "",
+      estimatedProtein: "",
+      estimatedCarbs: "",
+      estimatedFat: "",
+      estimatedCalories: "",
+      proteinGrams: "",
       macrosFromEstimate: false,
     });
   }
@@ -739,7 +738,7 @@ export default function DailyPage() {
             />
           </div>
           <div className="grid grid-cols-2 gap-3">
-            <div>
+            <div ref={foodTypeAreaRef}>
               <label className="text-xs font-medium text-zinc-600 dark:text-zinc-400">
                 Food type
               </label>
@@ -781,6 +780,7 @@ export default function DailyPage() {
                   value={foodDraft.amountValue}
                   onChange={(e) =>
                     setFoodDraft((f) => {
+                      setHideFoodSuggestions(true);
                       setSaveStatus("");
                       setFoodEstimateMessage("");
                       return {
@@ -797,6 +797,7 @@ export default function DailyPage() {
                   value={foodDraft.amountUnit}
                   onChange={(e) =>
                     setFoodDraft((f) => {
+                      setHideFoodSuggestions(true);
                       setSaveStatus("");
                       setFoodEstimateMessage("");
                       return {
