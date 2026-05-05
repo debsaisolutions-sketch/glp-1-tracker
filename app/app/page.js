@@ -97,6 +97,24 @@ function localDayNumber(date) {
   );
 }
 
+const WEIGHT_SOURCE_RE = /\[WEIGHT_SOURCE:([a-z_]+)\]/i;
+
+function parseWeightSource(notesText) {
+  const text = String(notesText || "");
+  const match = text.match(WEIGHT_SOURCE_RE);
+  const raw = String(match?.[1] || "").toLowerCase();
+  if (raw === "estimated_start" || raw === "verified" || raw === "regular") {
+    return raw;
+  }
+  return "";
+}
+
+function isLegacyStartingWeightEntry(entry) {
+  return String(entry?.notes || "")
+    .toLowerCase()
+    .includes("starting weight");
+}
+
 const STEP_HREF = {
   1: "/app/onboarding/step-1",
   2: "/app/onboarding/step-2",
@@ -139,20 +157,44 @@ export default function DashboardPage() {
   const lastDose = dosesSorted[0];
   const latestWeight = progressSorted[0];
   const baseline = progressSorted[progressSorted.length - 1];
+  const progressAsc = useMemo(
+    () => [...progressSorted].reverse(),
+    [progressSorted],
+  );
   const startingWeightEntry = useMemo(() => {
-    if (progressSorted.length === 0) return null;
-    const oldestFirst = [...progressSorted].reverse();
+    if (progressAsc.length === 0) return null;
     return (
-      oldestFirst.find((entry) =>
-        String(entry?.notes || "")
-          .toLowerCase()
-          .includes("starting weight"),
-      ) || oldestFirst[0]
+      progressAsc.find((entry) => parseWeightSource(entry?.notes) === "estimated_start") ||
+      progressAsc.find((entry) => isLegacyStartingWeightEntry(entry)) ||
+      progressAsc[0]
     );
-  }, [progressSorted]);
+  }, [progressAsc]);
+  const startingWeightIsEstimated = useMemo(() => {
+    if (!startingWeightEntry) return false;
+    const source = parseWeightSource(startingWeightEntry.notes);
+    return source === "estimated_start" || isLegacyStartingWeightEntry(startingWeightEntry);
+  }, [startingWeightEntry]);
+  const firstVerifiedWeightEntry = useMemo(() => {
+    if (progressAsc.length === 0 || !startingWeightEntry) return null;
+    const markedVerified = progressAsc.find(
+      (entry) => parseWeightSource(entry?.notes) === "verified",
+    );
+    if (markedVerified) return markedVerified;
+
+    if (!startingWeightIsEstimated) return null;
+    const startIdx = progressAsc.findIndex((entry) => entry.id === startingWeightEntry.id);
+    if (startIdx === -1) return null;
+    for (let i = startIdx + 1; i < progressAsc.length; i += 1) {
+      const source = parseWeightSource(progressAsc[i]?.notes);
+      if (source !== "estimated_start") return progressAsc[i];
+    }
+    return null;
+  }, [progressAsc, startingWeightEntry, startingWeightIsEstimated]);
   const startingWeightLb = parseNumericAmount(startingWeightEntry?.weightLb);
   const currentWeightLb = parseNumericAmount(latestWeight?.weightLb);
   const startingWeightDateLabel = formatEntryDate(startingWeightEntry);
+  const firstVerifiedWeightLb = parseNumericAmount(firstVerifiedWeightEntry?.weightLb);
+  const firstVerifiedWeightDateLabel = formatEntryDate(firstVerifiedWeightEntry);
   const currentWeightDateLabel = formatEntryDate(latestWeight);
   const totalLostLb =
     Number.isFinite(startingWeightLb) && Number.isFinite(currentWeightLb)
@@ -471,10 +513,24 @@ export default function DashboardPage() {
             <p className="text-xs font-medium text-zinc-500">Starting Weight</p>
             <p className="mt-2 text-lg font-semibold text-zinc-900 dark:text-zinc-50">
               {formatWeight(startingWeightLb)}
+              {startingWeightIsEstimated ? " — estimated" : ""}
             </p>
             {startingWeightDateLabel ? (
               <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
                 {startingWeightDateLabel}
+              </p>
+            ) : null}
+          </Card>
+          <Card>
+            <p className="text-xs font-medium text-zinc-500">
+              First Verified Scale Weight
+            </p>
+            <p className="mt-2 text-lg font-semibold text-zinc-900 dark:text-zinc-50">
+              {formatWeight(firstVerifiedWeightLb)}
+            </p>
+            {firstVerifiedWeightDateLabel ? (
+              <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
+                {firstVerifiedWeightDateLabel}
               </p>
             ) : null}
           </Card>
@@ -490,7 +546,11 @@ export default function DashboardPage() {
             ) : null}
           </Card>
           <Card>
-            <p className="text-xs font-medium text-zinc-500">Total Lost</p>
+            <p className="text-xs font-medium text-zinc-500">
+              {startingWeightIsEstimated
+                ? "Total Lost from Estimated Start"
+                : "Total Lost"}
+            </p>
             <p className="mt-2 text-lg font-semibold text-zinc-900 dark:text-zinc-50">
               {formatWeight(totalLostLb)}
             </p>
@@ -518,6 +578,12 @@ export default function DashboardPage() {
             </p>
           </Card>
         </div>
+        {startingWeightIsEstimated ? (
+          <p className="mt-3 text-xs text-zinc-500 dark:text-zinc-400">
+            Your starting weight was estimated. Progress is still useful, and your
+            most accurate trend begins with your first verified scale weight.
+          </p>
+        ) : null}
         <Card className="mt-4">
           <p className="text-xs font-medium uppercase tracking-wide text-zinc-500">
             Goal Projection Timeline

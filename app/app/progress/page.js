@@ -23,6 +23,34 @@ function sortByDateDesc(items) {
   );
 }
 
+const WEIGHT_SOURCE_OPTIONS = [
+  { value: "regular", label: "Regular scale weight" },
+  { value: "estimated_start", label: "Estimated starting weight" },
+  { value: "verified", label: "Verified scale weight" },
+];
+const WEIGHT_SOURCE_RE = /\[WEIGHT_SOURCE:([a-z_]+)\]/i;
+
+function parseWeightSource(notesText) {
+  const text = String(notesText || "");
+  const match = text.match(WEIGHT_SOURCE_RE);
+  const raw = String(match?.[1] || "").toLowerCase();
+  return WEIGHT_SOURCE_OPTIONS.some((opt) => opt.value === raw) ? raw : "regular";
+}
+
+function stripWeightSourceMarker(notesText) {
+  return String(notesText || "")
+    .replace(WEIGHT_SOURCE_RE, "")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
+function buildNotesWithWeightSource(notesText, source) {
+  const clean = stripWeightSourceMarker(notesText);
+  if (source === "regular") return clean;
+  const marker = `[WEIGHT_SOURCE:${source}]`;
+  return clean ? `${clean}\n\n${marker}` : marker;
+}
+
 function emptyProgressForm() {
   const now = new Date();
   const localTime = `${String(now.getHours()).padStart(2, "0")}:${String(
@@ -35,6 +63,7 @@ function emptyProgressForm() {
     inches: "",
     feeling: FEELING_EMOJIS[1],
     notes: "",
+    weightSource: "regular",
   };
 }
 
@@ -95,7 +124,8 @@ export default function ProgressPage() {
           ? String(p.inches)
           : "",
       feeling: p.feeling || FEELING_EMOJIS[1],
-      notes: p.notes ?? "",
+      notes: stripWeightSourceMarker(p.notes),
+      weightSource: parseWeightSource(p.notes),
     });
   }
 
@@ -141,7 +171,7 @@ export default function ProgressPage() {
       weightLb: w,
       inches: inchesVal === "" ? undefined : Number.parseFloat(inchesVal),
       feeling: form.feeling,
-      notes: form.notes.trim(),
+      notes: buildNotesWithWeightSource(form.notes, form.weightSource),
     };
     if (editingId) {
       setProgress((list) => list.map((x) => (x.id === editingId ? row : x)));
@@ -293,6 +323,24 @@ export default function ProgressPage() {
                 className="mt-1 w-full rounded-xl border border-zinc-200 bg-white px-3 py-2.5 text-sm dark:border-zinc-700 dark:bg-zinc-950"
               />
             </div>
+            <div>
+              <label className="text-xs font-medium text-zinc-600 dark:text-zinc-400">
+                Weight source
+              </label>
+              <select
+                value={form.weightSource}
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, weightSource: e.target.value }))
+                }
+                className="mt-1 w-full rounded-xl border border-zinc-200 bg-white px-3 py-2.5 text-sm dark:border-zinc-700 dark:bg-zinc-950"
+              >
+                {WEIGHT_SOURCE_OPTIONS.map((opt) => (
+                  <option key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
 
           <EmojiPicker
@@ -345,55 +393,70 @@ export default function ProgressPage() {
         {sortedDesc.length === 0 ? (
           <p className="text-sm text-zinc-500">No weigh-ins yet.</p>
         ) : null}
-        {sortedDesc.map((p) => (
-          <Card
-            key={p.id}
-            className={
-              editingId === p.id
-                ? "ring-2 ring-teal-500 ring-offset-2 ring-offset-zinc-50 dark:ring-offset-zinc-950"
-                : ""
-            }
-          >
-            <div className="flex items-start justify-between gap-2">
-              <div className="min-w-0 flex-1">
-                <p className="text-sm font-semibold text-zinc-900 dark:text-zinc-50">
-                  {p.weightLb} lb{" "}
-                  <span className="text-base font-normal" aria-hidden>
-                    {p.feeling}
-                  </span>
-                </p>
-                <p className="text-xs text-zinc-500">
-                  {p.date}
-                  {formatWeightTime(p.weightTime)
-                    ? ` · ${formatWeightTime(p.weightTime)}`
-                    : ""}
-                  {typeof p.inches === "number" ? ` · ${p.inches}"` : ""}
-                </p>
+        {sortedDesc.map((p) => {
+          const cleanNotes = stripWeightSourceMarker(p.notes);
+          const source = parseWeightSource(p.notes);
+          const sourceLabel =
+            source === "estimated_start"
+              ? "Estimated starting weight"
+              : source === "verified"
+                ? "Verified scale weight"
+                : "";
+          return (
+            <Card
+              key={p.id}
+              className={
+                editingId === p.id
+                  ? "ring-2 ring-teal-500 ring-offset-2 ring-offset-zinc-50 dark:ring-offset-zinc-950"
+                  : ""
+              }
+            >
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-semibold text-zinc-900 dark:text-zinc-50">
+                    {p.weightLb} lb{" "}
+                    <span className="text-base font-normal" aria-hidden>
+                      {p.feeling}
+                    </span>
+                  </p>
+                  <p className="text-xs text-zinc-500">
+                    {p.date}
+                    {formatWeightTime(p.weightTime)
+                      ? ` · ${formatWeightTime(p.weightTime)}`
+                      : ""}
+                    {typeof p.inches === "number" ? ` · ${p.inches}"` : ""}
+                  </p>
+                </div>
+                <div className="flex shrink-0 gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => beginEdit(p)}
+                    className={btnEdit}
+                  >
+                    Edit
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => confirmDeleteProgress(p.id)}
+                    className={btnDelete}
+                  >
+                    Delete
+                  </button>
+                </div>
               </div>
-              <div className="flex shrink-0 gap-1.5">
-                <button
-                  type="button"
-                  onClick={() => beginEdit(p)}
-                  className={btnEdit}
-                >
-                  Edit
-                </button>
-                <button
-                  type="button"
-                  onClick={() => confirmDeleteProgress(p.id)}
-                  className={btnDelete}
-                >
-                  Delete
-                </button>
-              </div>
-            </div>
-            {p.notes ? (
-              <p className="mt-2 text-sm text-zinc-700 dark:text-zinc-300">
-                {p.notes}
-              </p>
-            ) : null}
-          </Card>
-        ))}
+              {sourceLabel ? (
+                <p className="mt-2 text-xs font-medium text-zinc-600 dark:text-zinc-400">
+                  {sourceLabel}
+                </p>
+              ) : null}
+              {cleanNotes ? (
+                <p className="mt-2 text-sm text-zinc-700 dark:text-zinc-300">
+                  {cleanNotes}
+                </p>
+              ) : null}
+            </Card>
+          );
+        })}
       </div>
     </div>
   );
