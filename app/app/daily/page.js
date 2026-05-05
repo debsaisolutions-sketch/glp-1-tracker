@@ -49,6 +49,7 @@ function formatFoodTimeDisplay(hhmm) {
 
 function emptyFoodDraft() {
   return {
+    mealGroup: "",
     foodNotes: "",
     foodType: "",
     amountValue: "",
@@ -203,6 +204,8 @@ export default function DailyPage() {
   const [foodEstimateMessage, setFoodEstimateMessage] = useState("");
   const [saveStatus, setSaveStatus] = useState("");
   const [hideFoodSuggestions, setHideFoodSuggestions] = useState(false);
+  const addFoodSectionRef = useRef(null);
+  const foodTypeInputRef = useRef(null);
   const foodTypeAreaRef = useRef(null);
 
   function normalizeFoodItem(raw, idx = 0) {
@@ -211,6 +214,7 @@ export default function DailyPage() {
         raw && typeof raw === "object" && raw.id
           ? String(raw.id)
           : `fi-${idx}-${Math.random().toString(36).slice(2, 8)}`,
+      mealGroup: String(raw?.mealGroup || "").trim(),
       foodType: String(raw?.foodType || "").trim(),
       amount: String(raw?.amount || "").trim(),
       foodTime: String(raw?.foodTime ?? "").trim(),
@@ -383,8 +387,8 @@ export default function DailyPage() {
     setDaily((list) => [row, ...list.filter((entry) => entry.date !== selectedDate)]);
   }
 
-  function submitFoodItem(e) {
-    e.preventDefault();
+  function saveFoodItemDraft(options = {}) {
+    const keepMealGroupForNext = !!options.keepMealGroupForNext;
     setFoodFormError("");
     setFoodEstimateMessage("");
     setSaveStatus("");
@@ -409,8 +413,32 @@ export default function DailyPage() {
     persistDailyRowForSelectedDate(nextList);
     setSaveStatus("foodSaved");
 
-    setFoodDraft(emptyFoodDraft());
+    const mealGroup = String(foodDraft.mealGroup || "").trim();
+    const foodTime = String(foodDraft.foodTime || "").trim() || formatLocalTimeInput();
+    setFoodDraft(() => ({
+      ...emptyFoodDraft(),
+      mealGroup,
+      foodTime,
+    }));
     setShowCustomAmountInput(false);
+    if (keepMealGroupForNext) {
+      setTimeout(() => {
+        foodTypeInputRef.current?.focus();
+      }, 80);
+    }
+    return true;
+  }
+
+  function submitFoodItem(e) {
+    e.preventDefault();
+    saveFoodItemDraft();
+  }
+
+  function saveEditAndAddAnotherToMealGroup() {
+    if (!editingFoodItemId) return;
+    const mealGroup = String(foodDraft.mealGroup || "").trim();
+    if (!mealGroup) return;
+    saveFoodItemDraft({ keepMealGroupForNext: true });
   }
 
   function startEditFoodItem(item) {
@@ -420,6 +448,7 @@ export default function DailyPage() {
     setShowCustomAmountInput(false);
     setEditingFoodItemId(item.id);
     setFoodDraft({
+      mealGroup: item.mealGroup || "",
       foodType: item.foodType || "",
       ...foodAmountDraftFromText(item.amount),
       foodTime: String(item.foodTime || "").trim()
@@ -465,22 +494,31 @@ export default function DailyPage() {
     setEditingFoodItemId(null);
     setHideFoodSuggestions(true);
     setShowCustomAmountInput(false);
-    setFoodDraft({
+    setFoodDraft((f) => ({
+      ...emptyFoodDraft(),
+      mealGroup: f.mealGroup || "",
       foodType: item.foodType || "",
-      amountValue: "",
-      amountUnit: "oz",
-      amountRaw: "",
-      foodTime: formatLocalTimeInput(),
-      foodNotes: "",
-      portionEaten: "all",
-      portionCustom: "",
-      estimatedProtein: "",
-      estimatedCarbs: "",
-      estimatedFat: "",
-      estimatedCalories: "",
-      proteinGrams: "",
-      macrosFromEstimate: false,
-    });
+    }));
+  }
+
+  function startAddToMealGroup(groupName, groupFirstTime = "") {
+    setEditingFoodItemId(null);
+    setShowCustomAmountInput(false);
+    setHideFoodSuggestions(true);
+    setFoodFormError("");
+    setFoodEstimateMessage("");
+    setSaveStatus("");
+    const normalizedGroupName = String(groupName || "").trim();
+    const mealGroup =
+      normalizedGroupName.toLowerCase() === "ungrouped" ? "" : normalizedGroupName;
+    const foodTime = String(groupFirstTime || "").trim() || formatLocalTimeInput();
+    setFoodDraft(() => ({ ...emptyFoodDraft(), mealGroup, foodTime }));
+    if (addFoodSectionRef.current) {
+      addFoodSectionRef.current.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+    setTimeout(() => {
+      foodTypeInputRef.current?.focus();
+    }, 120);
   }
 
   function onEstimateMacros() {
@@ -623,6 +661,36 @@ export default function DailyPage() {
       .filter((item) => String(item.foodType || "").toLowerCase().includes(query))
       .slice(0, 5);
   }, [foodDraft.foodType, hideFoodSuggestions, visibleRecentFoods]);
+  const groupedFoodItems = useMemo(() => {
+    const groups = [];
+    const byKey = new Map();
+    for (const item of selectedFoodItems) {
+      const groupName = String(item.mealGroup || "").trim() || "Ungrouped";
+      let group = byKey.get(groupName);
+      if (!group) {
+        group = {
+          name: groupName,
+          items: [],
+          totals: { protein: 0, carbs: 0, fat: 0, calories: 0 },
+          firstTime: "",
+        };
+        byKey.set(groupName, group);
+        groups.push(group);
+      }
+      group.items.push(item);
+      if (!group.firstTime) {
+        group.firstTime = String(item.foodTime || "").trim();
+      }
+      group.totals.protein +=
+        (Number.parseFloat(item.estimatedProtein) || 0) > 0
+          ? Number.parseFloat(item.estimatedProtein) || 0
+          : Number.parseFloat(item.proteinGrams) || 0;
+      group.totals.carbs += Number.parseFloat(item.estimatedCarbs) || 0;
+      group.totals.fat += Number.parseFloat(item.estimatedFat) || 0;
+      group.totals.calories += Number.parseFloat(item.estimatedCalories) || 0;
+    }
+    return groups;
+  }, [selectedFoodItems]);
   const waterToday = Math.max(0, Number.parseFloat(waterOz) || 0);
   const selectedTotals = selectedFoodItems.reduce(
     (totals, item) => ({
@@ -714,11 +782,28 @@ export default function DailyPage() {
         </div>
       </Card>
 
-      <Card>
+      <Card ref={addFoodSectionRef}>
         <h2 className="text-sm font-semibold text-zinc-900 dark:text-zinc-50">
           Add food item
         </h2>
         <form className="mt-4 space-y-4" onSubmit={submitFoodItem}>
+          <div>
+            <label className="text-xs font-medium text-zinc-600 dark:text-zinc-400">
+              Meal / group
+            </label>
+            <input
+              value={foodDraft.mealGroup}
+              onChange={(e) =>
+                setFoodDraft((f) => {
+                  setSaveStatus("");
+                  setFoodEstimateMessage("");
+                  return { ...f, mealGroup: e.target.value };
+                })
+              }
+              placeholder="e.g. Breakfast, Lunch, Dinner, Snack"
+              className="mt-1 w-full rounded-xl border border-zinc-200 bg-white px-3 py-2.5 text-sm dark:border-zinc-700 dark:bg-zinc-950"
+            />
+          </div>
           <div>
             <label className="text-xs font-medium text-zinc-600 dark:text-zinc-400">
               Food notes
@@ -743,6 +828,7 @@ export default function DailyPage() {
                 Food type
               </label>
               <input
+                ref={foodTypeInputRef}
                 value={foodDraft.foodType}
                 onChange={(e) =>
                   setFoodDraft((f) => {
@@ -1040,25 +1126,34 @@ export default function DailyPage() {
             ) : null}
           </div>
 
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+          <div className="flex flex-col gap-2 pb-20 sm:pb-0 lg:flex-row lg:flex-wrap lg:items-center">
             <button
               type="button"
               onClick={onEstimateMacros}
-              className="w-full rounded-xl border border-zinc-200 bg-white py-2.5 text-sm font-semibold text-zinc-800 hover:bg-zinc-50 dark:border-zinc-600 dark:bg-zinc-900 dark:text-zinc-100 dark:hover:bg-zinc-800 sm:w-auto sm:shrink-0 sm:px-5"
+              className="w-full rounded-xl border border-zinc-200 bg-white py-2.5 text-sm font-semibold text-zinc-800 hover:bg-zinc-50 dark:border-zinc-600 dark:bg-zinc-900 dark:text-zinc-100 dark:hover:bg-zinc-800 lg:w-auto lg:shrink-0 lg:px-5"
             >
               Estimate macros
             </button>
             <button
               type="submit"
-              className="w-full rounded-xl bg-teal-600 py-2.5 text-sm font-semibold text-white hover:bg-teal-700 sm:flex-1"
+              className="w-full rounded-xl bg-teal-600 py-2.5 text-sm font-semibold text-white hover:bg-teal-700 lg:flex-1"
             >
               {editingFoodItemId ? "Save food item changes" : "Add food item"}
             </button>
+            {editingFoodItemId && String(foodDraft.mealGroup || "").trim() ? (
+              <button
+                type="button"
+                onClick={saveEditAndAddAnotherToMealGroup}
+                className="w-full whitespace-normal break-words rounded-xl border border-teal-200 bg-teal-50 py-2.5 text-sm font-semibold text-teal-800 hover:bg-teal-100 dark:border-teal-900/60 dark:bg-teal-950/30 dark:text-teal-200 dark:hover:bg-teal-950/50 lg:w-auto lg:max-w-full lg:shrink lg:px-4"
+              >
+                Save changes + add another to {String(foodDraft.mealGroup).trim()}
+              </button>
+            ) : null}
             {editingFoodItemId ? (
               <button
                 type="button"
                 onClick={cancelEditFoodItem}
-                className="w-full rounded-xl border border-zinc-200 bg-white py-2.5 text-sm font-semibold text-zinc-800 hover:bg-zinc-50 dark:border-zinc-600 dark:bg-zinc-900 dark:text-zinc-100 dark:hover:bg-zinc-800 sm:w-auto sm:shrink-0 sm:px-5"
+                className="w-full rounded-xl border border-zinc-200 bg-white py-2.5 text-sm font-semibold text-zinc-800 hover:bg-zinc-50 dark:border-zinc-600 dark:bg-zinc-900 dark:text-zinc-100 dark:hover:bg-zinc-800 lg:w-auto lg:shrink-0 lg:px-5"
               >
                 Cancel edit
               </button>
@@ -1211,65 +1306,93 @@ export default function DailyPage() {
             No food entries saved for {selectedDate}.
           </p>
         ) : null}
-        {selectedFoodItems.map((item) => (
-          <Card
-            key={item.id}
-          >
-            <div className="flex items-start justify-between gap-2">
-              <div className="min-w-0 flex-1">
-                <p className="text-sm font-semibold text-zinc-900 dark:text-zinc-50">
-                  {item.foodType || "Food item"}
+        {groupedFoodItems.map((group) => (
+          <Card key={group.name}>
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+              <div className="min-w-0">
+                <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
+                  {group.name}
                 </p>
-                {(() => {
-                  const amt = String(item.amount || "").trim();
-                  const timeLabel = formatFoodTimeDisplay(item.foodTime);
-                  if (!amt && !timeLabel) return null;
-                  const line = [amt, timeLabel].filter(Boolean).join(" · ");
-                  return (
-                    <p className="mt-1 text-xs text-zinc-500">
-                      {line}
-                    </p>
-                  );
-                })()}
-                {(Number.parseFloat(item.estimatedProtein) > 0 ||
-                  Number.parseFloat(item.estimatedCarbs) > 0 ||
-                  Number.parseFloat(item.estimatedFat) > 0 ||
-                  Number.parseFloat(item.estimatedCalories) > 0) ? (
-                  <p className="mt-1 text-xs text-zinc-500">
-                    Est. P {Number.parseFloat(item.estimatedProtein) || 0}g · C{" "}
-                    {Number.parseFloat(item.estimatedCarbs) || 0}g · F{" "}
-                    {Number.parseFloat(item.estimatedFat) || 0}g ·{" "}
-                    {Number.parseFloat(item.estimatedCalories) || 0} cal
+                {formatFoodTimeDisplay(group.firstTime) ? (
+                  <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
+                    {formatFoodTimeDisplay(group.firstTime)}
                   </p>
                 ) : null}
-                {(Number.parseFloat(item.proteinGrams) || 0) > 0 ? (
-                  <p className="mt-1 text-xs text-zinc-500">
-                    Protein {Number.parseFloat(item.proteinGrams) || 0} g
-                  </p>
-                ) : null}
+                <p className="mt-1 text-xs text-zinc-600 dark:text-zinc-300">
+                  Meal totals: P {Math.round(group.totals.protein * 10) / 10}g · C{" "}
+                  {Math.round(group.totals.carbs * 10) / 10}g · F{" "}
+                  {Math.round(group.totals.fat * 10) / 10}g ·{" "}
+                  {Math.round(group.totals.calories)} cal
+                </p>
               </div>
-              <div className="flex shrink-0 gap-1.5">
-                <button
-                  type="button"
-                  onClick={() => startEditFoodItem(item)}
-                  className={btnEdit}
-                >
-                  Edit
-                </button>
-                <button
-                  type="button"
-                  onClick={() => removeFoodItem(item.id)}
-                  className={btnDelete}
-                >
-                  Remove
-                </button>
-              </div>
+              <button
+                type="button"
+                onClick={() => startAddToMealGroup(group.name, group.firstTime)}
+                className="text-left text-xs font-medium text-teal-700 underline underline-offset-2 hover:text-teal-800 dark:text-teal-300 dark:hover:text-teal-200"
+              >
+                + Add another item to {group.name}
+              </button>
             </div>
-            {item.foodNotes ? (
-              <p className="mt-2 text-sm text-zinc-700 dark:text-zinc-300">
-                {item.foodNotes}
-              </p>
-            ) : null}
+            <div className="mt-3 space-y-2">
+              {group.items.map((item) => (
+                <div
+                  key={item.id}
+                  className="rounded-xl border border-zinc-200/80 bg-zinc-50/60 p-2.5 dark:border-zinc-700 dark:bg-zinc-900/50"
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-semibold text-zinc-900 dark:text-zinc-50">
+                        {item.foodType || "Food item"}
+                      </p>
+                      {(() => {
+                        const amt = String(item.amount || "").trim();
+                        const timeLabel = formatFoodTimeDisplay(item.foodTime);
+                        if (!amt && !timeLabel) return null;
+                        const line = [amt, timeLabel].filter(Boolean).join(" · ");
+                        return <p className="mt-0.5 text-xs text-zinc-500">{line}</p>;
+                      })()}
+                      {(Number.parseFloat(item.estimatedProtein) > 0 ||
+                        Number.parseFloat(item.estimatedCarbs) > 0 ||
+                        Number.parseFloat(item.estimatedFat) > 0 ||
+                        Number.parseFloat(item.estimatedCalories) > 0) ? (
+                        <p className="mt-0.5 text-xs text-zinc-500">
+                          Est. P {Number.parseFloat(item.estimatedProtein) || 0}g · C{" "}
+                          {Number.parseFloat(item.estimatedCarbs) || 0}g · F{" "}
+                          {Number.parseFloat(item.estimatedFat) || 0}g ·{" "}
+                          {Number.parseFloat(item.estimatedCalories) || 0} cal
+                        </p>
+                      ) : null}
+                      {(Number.parseFloat(item.proteinGrams) || 0) > 0 ? (
+                        <p className="mt-0.5 text-xs text-zinc-500">
+                          Protein {Number.parseFloat(item.proteinGrams) || 0} g
+                        </p>
+                      ) : null}
+                    </div>
+                    <div className="flex shrink-0 gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => startEditFoodItem(item)}
+                        className={btnEdit}
+                      >
+                        Edit
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => removeFoodItem(item.id)}
+                        className={btnDelete}
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  </div>
+                  {item.foodNotes ? (
+                    <p className="mt-1.5 text-sm text-zinc-700 dark:text-zinc-300">
+                      {item.foodNotes}
+                    </p>
+                  ) : null}
+                </div>
+              ))}
+            </div>
           </Card>
         ))}
       </div>
