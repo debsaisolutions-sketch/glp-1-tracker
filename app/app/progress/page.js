@@ -5,7 +5,7 @@ import { Card } from "@/components/Card";
 import { EmojiPicker } from "@/components/EmojiPicker";
 import { useAppState } from "@/components/AppStateContext";
 import { FEELING_EMOJIS } from "@/lib/constants";
-import { encouragingMessage } from "@/lib/glp1-helpers";
+import { encouragingMessage, parseNumericAmount } from "@/lib/glp1-helpers";
 
 function newId() {
   return `p-${Math.random().toString(36).slice(2, 10)}`;
@@ -105,7 +105,9 @@ export default function ProgressPage() {
     latest && baseline ? latest.weightLb - baseline.weightLb : 0;
   const message = encouragingMessage(change);
   const hasWeightInput = form.weightLb.trim() !== "";
-  const hasGoalWeightInput = Number.isFinite(goalWeight) && goalWeight > 0;
+  const parsedGoalWeight = parseNumericAmount(goalWeight);
+  const hasGoalWeightInput =
+    Number.isFinite(parsedGoalWeight) && parsedGoalWeight > 0;
   const canSave = hasWeightInput || hasGoalWeightInput;
 
   function cancelEdit() {
@@ -145,7 +147,8 @@ export default function ProgressPage() {
     e.preventDefault();
     const weightInput = form.weightLb.trim();
     const hasWeightValue = weightInput !== "";
-    const hasGoalWeight = Number.isFinite(goalWeight) && goalWeight > 0;
+    const hasGoalWeight =
+      Number.isFinite(parsedGoalWeight) && parsedGoalWeight > 0;
     if (!hasWeightValue && !hasGoalWeight) {
       return;
     }

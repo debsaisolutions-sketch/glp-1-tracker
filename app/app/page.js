@@ -122,6 +122,9 @@ const STEP_HREF = {
   4: "/app/onboarding/step-4",
 };
 
+/** Used when we cannot derive average weekly loss from weigh-in history yet. */
+const FALLBACK_WEEKLY_WEIGHT_LOSS_LB = 1;
+
 export default function DashboardPage() {
   const router = useRouter();
   const {
@@ -200,11 +203,17 @@ export default function DashboardPage() {
     Number.isFinite(startingWeightLb) && Number.isFinite(currentWeightLb)
       ? startingWeightLb - currentWeightLb
       : null;
-  const goalWeightLb = Number.isFinite(goalWeight) && goalWeight > 0 ? goalWeight : null;
-  const remainingToGoalLb =
-    Number.isFinite(currentWeightLb) && Number.isFinite(goalWeightLb)
+  const parsedGoalWeight = parseNumericAmount(goalWeight);
+  const goalWeightLb =
+    Number.isFinite(parsedGoalWeight) && parsedGoalWeight > 0
+      ? parsedGoalWeight
+      : null;
+  const remainingToGoalRaw =
+    Number.isFinite(currentWeightLb) && goalWeightLb != null
       ? currentWeightLb - goalWeightLb
       : null;
+  const remainingToGoalLb =
+    remainingToGoalRaw == null ? null : Math.max(0, remainingToGoalRaw);
   const trackedWeeks = useMemo(() => {
     const startDate = startingWeightEntry?.date;
     const currentDate = latestWeight?.date;
@@ -220,29 +229,42 @@ export default function DashboardPage() {
       ? totalLostLb / trackedWeeks
       : null;
   const projectionRemainingLb =
-    Number.isFinite(currentWeightLb) && Number.isFinite(goalWeightLb)
-      ? currentWeightLb - goalWeightLb
+    Number.isFinite(currentWeightLb) && goalWeightLb != null
+      ? Math.max(0, currentWeightLb - goalWeightLb)
+      : null;
+  const observedWeeklyLossLb =
+    Number.isFinite(averageWeeklyChange) && averageWeeklyChange > 0
+      ? averageWeeklyChange
+      : null;
+  const projectionWeeklyLossLb =
+    projectionRemainingLb != null
+      ? observedWeeklyLossLb ?? FALLBACK_WEEKLY_WEIGHT_LOSS_LB
       : null;
   const projectionWeeksToGoal =
-    Number.isFinite(projectionRemainingLb) &&
-    Number.isFinite(averageWeeklyChange) &&
-    averageWeeklyChange !== 0
-      ? projectionRemainingLb / averageWeeklyChange
+    projectionRemainingLb != null &&
+    projectionWeeklyLossLb != null &&
+    projectionWeeklyLossLb > 0
+      ? projectionRemainingLb / projectionWeeklyLossLb
       : null;
   const projectionGoalDate =
-    Number.isFinite(projectionWeeksToGoal) && projectionWeeksToGoal >= 0
-      ? new Date(Date.now() + projectionWeeksToGoal * 7 * 24 * 60 * 60 * 1000)
+    projectionWeeksToGoal != null && Number.isFinite(projectionWeeksToGoal)
+      ? (() => {
+          const anchor = new Date();
+          return new Date(
+            anchor.getTime() +
+              projectionWeeksToGoal * 7 * 24 * 60 * 60 * 1000,
+          );
+        })()
       : null;
-  const projectionNotEnoughData =
-    !Number.isFinite(startingWeightLb) ||
-    !Number.isFinite(currentWeightLb) ||
-    !Number.isFinite(trackedWeeks) ||
-    trackedWeeks <= 0;
+  const projectionNeedsWeights =
+    !Number.isFinite(currentWeightLb) || goalWeightLb == null;
+  const projectionUsesEstimatedPace =
+    !projectionNeedsWeights && observedWeeklyLossLb == null;
   const projectionPaceLabel =
-    Number.isFinite(goalWeightLb) &&
-    Number.isFinite(averageWeeklyChange) &&
-    averageWeeklyChange !== 0
-      ? `${averageWeeklyChange.toFixed(2)} lb/week`
+    goalWeightLb != null && Number.isFinite(currentWeightLb)
+      ? observedWeeklyLossLb != null
+        ? `${observedWeeklyLossLb.toFixed(2)} lb/week`
+        : `${FALLBACK_WEEKLY_WEIGHT_LOSS_LB.toFixed(1)} lb/week (estimated)`
       : "\u2014";
   const currentWeekDose = useMemo(() => {
     const today = new Date();
@@ -592,7 +614,9 @@ export default function DashboardPage() {
             <div>
               <p className="text-xs font-medium text-zinc-500">Estimated Goal Date</p>
               <p className="mt-1 text-lg font-semibold text-zinc-900 dark:text-zinc-50">
-                {Number.isFinite(goalWeightLb) && Number.isFinite(averageWeeklyChange) && averageWeeklyChange !== 0
+                {!projectionNeedsWeights &&
+                projectionGoalDate != null &&
+                Number.isFinite(projectionGoalDate.getTime())
                   ? formatCalendarDate(projectionGoalDate)
                   : "\u2014"}
               </p>
@@ -600,8 +624,7 @@ export default function DashboardPage() {
             <div>
               <p className="text-xs font-medium text-zinc-500">Weeks Remaining</p>
               <p className="mt-1 text-lg font-semibold text-zinc-900 dark:text-zinc-50">
-                {Number.isFinite(goalWeightLb) && Number.isFinite(averageWeeklyChange) && averageWeeklyChange !== 0 &&
-                Number.isFinite(projectionWeeksToGoal)
+                {!projectionNeedsWeights && Number.isFinite(projectionWeeksToGoal)
                   ? Math.round(projectionWeeksToGoal)
                   : "\u2014"}
               </p>
@@ -613,9 +636,14 @@ export default function DashboardPage() {
               </p>
             </div>
           </div>
-          {projectionNotEnoughData ? (
+          {projectionNeedsWeights ? (
             <p className="mt-3 text-xs text-zinc-500 dark:text-zinc-400">
-              Not enough data
+              Add a current weight and a goal weight to see your projection.
+            </p>
+          ) : projectionUsesEstimatedPace ? (
+            <p className="mt-3 text-xs text-zinc-500 dark:text-zinc-400">
+              Using {FALLBACK_WEEKLY_WEIGHT_LOSS_LB} lb/week until enough
+              weigh-ins establish a weekly trend.
             </p>
           ) : null}
         </Card>
