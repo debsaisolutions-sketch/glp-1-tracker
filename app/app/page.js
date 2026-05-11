@@ -155,14 +155,25 @@ export default function DashboardPage() {
   const step4Done = doses.length > 0;
   const currentStep = getCurrentSetupStep(vial, progress, doses, primaryGoal);
 
-  const progressSorted = sortByDateDesc(progress);
+  const weightEntriesSorted = useMemo(() => {
+    const onlyValidWeights = (Array.isArray(progress) ? progress : []).filter(
+      (entry) => {
+        const w = parseNumericAmount(entry?.weightLb);
+        return Number.isFinite(w) && w > 0;
+      },
+    );
+    return sortByDateDesc(onlyValidWeights);
+  }, [progress]);
   const dosesSorted = sortByDateDesc(doses);
   const lastDose = dosesSorted[0];
-  const latestWeight = progressSorted[0];
-  const baseline = progressSorted[progressSorted.length - 1];
+  const latestWeight = weightEntriesSorted[0];
+  const baseline =
+    weightEntriesSorted.length > 0
+      ? weightEntriesSorted[weightEntriesSorted.length - 1]
+      : null;
   const progressAsc = useMemo(
-    () => [...progressSorted].reverse(),
-    [progressSorted],
+    () => [...weightEntriesSorted].reverse(),
+    [weightEntriesSorted],
   );
   const startingWeightEntry = useMemo(() => {
     if (progressAsc.length === 0) return null;

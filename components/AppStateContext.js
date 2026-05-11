@@ -187,6 +187,7 @@ function mapDailyFromDb(row) {
         ? String(item.id)
         : `fi-${index}-${Math.random().toString(36).slice(2, 8)}`,
     foodType: item?.foodType || item?.food_type || "",
+    mealGroup: item?.mealGroup || item?.meal_group || "",
     amount: item?.amount || "",
     foodTime: item?.foodTime || item?.food_time || "",
     foodNotes: item?.foodNotes || item?.food_notes || "",
@@ -466,6 +467,7 @@ async function syncSnapshotToSupabase(userId, snapshot) {
                 ? String(item.id)
                 : `fi-${index}-${Math.random().toString(36).slice(2, 8)}`,
             foodType: item?.foodType || "",
+            mealGroup: item?.mealGroup || "",
             amount: item?.amount || "",
             foodTime: item?.foodTime || "",
             foodNotes: item?.foodNotes || "",
@@ -737,12 +739,43 @@ export function AppStateProvider({ children }) {
     });
   }, []);
 
-  const setGoalWeight = useCallback((next) => {
-    setGoalWeightState((g) => {
-      if (typeof next === "function") return normalizeGoalWeight(next(g));
-      return normalizeGoalWeight(next);
-    });
-  }, []);
+  const setGoalWeight = useCallback(
+    (next) => {
+      setGoalWeightState((g) => {
+        const normalized =
+          typeof next === "function"
+            ? normalizeGoalWeight(next(g))
+            : normalizeGoalWeight(next);
+
+        // Ensure goal weight is available for immediate re-hydration
+        // (e.g. after a route transition) by persisting synchronously.
+        if (hydrated) {
+          writeStorage({
+            vial,
+            doses,
+            progress,
+            daily,
+            shakeNutritionPrefs,
+            primaryGoal,
+            goalWeight: normalized,
+            onboardingComplete,
+          });
+        }
+
+        return normalized;
+      });
+    },
+    [
+      hydrated,
+      vial,
+      doses,
+      progress,
+      daily,
+      shakeNutritionPrefs,
+      primaryGoal,
+      onboardingComplete,
+    ],
+  );
 
   const completeOnboarding = useCallback(() => {
     setOnboardingCompleteState(true);
